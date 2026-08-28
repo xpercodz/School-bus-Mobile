@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+@theme {
+  /* Material Utility (M3 light) — tokens from DESIGN.md */
+  --color-surface: #f8f9fa;
+  --color-surface-dim: #d7dae0;
+  --color-surface-bright: #f7f9ff;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f1f4fa;
+  --color-surface-container: #ebeef4;
+  --color-surface-container-high: #e5e8ee;
+  --color-surface-container-highest: #dfe3e8;
+  --color-surface-variant: #dfe3e8;
+  --color-background: #f7f9ff;
+  --color-on-surface: #181c20;
+  --color-on-surface-variant: #414754;
+  --color-on-background: #181c20;
+  --color-outline: #727785;
+  --color-outline-variant: #c1c6d6;
+  --color-primary: #005bbf;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #1a73e8;
+  --color-on-primary-container: #ffffff;
+  --color-secondary: #005ac1;
+  --color-on-secondary: #ffffff;
+  --color-error: #d93025;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+  --color-success: #1e8e3e;
+  /* Green text on light success tints — #137333 passes WCAG AA (5.3:1) where #1e8e3e fails (3.7:1) */
+  --color-on-success: #137333;
+  --color-waiting: #f9ab00;
+
+  /* Typography — the sizes this screen uses */
+  --text-headline-md: 24px;
+  --text-headline-md--line-height: 32px;
+  --text-headline-md--font-weight: 600;
+  --text-headline-md--letter-spacing: -0.01em;
+  --text-body-lg: 16px;
+  --text-body-lg--line-height: 24px;
+  --text-body-md: 14px;
+  --text-body-md--line-height: 20px;
+  --text-label-lg: 14px;
+  --text-label-lg--line-height: 20px;
+  --text-label-lg--font-weight: 500;
+  --text-label-lg--letter-spacing: 0.1px;
+
+  /* Fonts */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-icon: "Material Symbols Rounded", sans-serif;
+
+  /* Elevation — Level 1 (cards): soft 4px blur @ 5% */
+  --shadow-card: 0 1px 4px rgb(0 0 0 / 0.05);
+}
+
+/* Horizontal scroll rows that hide the scrollbar (chips, tabs) */
+@utility no-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  scrollbar-width: none;
+}
+
+@layer base {
+  body {
+    @apply bg-surface font-sans text-on-surface antialiased;
+  }
+
+  /* Filled Material Symbols icons (per code.html: FILL 1, wght 400, opsz 24) */
+  .material-symbols-rounded {
+    font-family: var(--font-icon);
+    font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+    line-height: 1;
+    user-select: none;
+  }
+}
