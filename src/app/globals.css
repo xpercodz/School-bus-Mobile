@@ -49,9 +49,64 @@
   /* Fonts */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-icon: "Material Symbols Rounded", sans-serif;
+  --font-icon-outlined: "Material Symbols Outlined", sans-serif;
+  /* JetBrains Mono — metrics on the dashboard. Mobile never uses font-mono.
+     Loading it for the whole app is the simplest way to share one theme file. */
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo,
+    monospace;
 
   /* Elevation — Level 1 (cards): soft 4px blur @ 5% */
   --shadow-card: 0 1px 4px rgb(0 0 0 / 0.05);
+
+  /* ── Dashboard theme (School Transit Live Monitor) ──────────────────────────
+     Fully namespaced under --color-dash-* so it can never collide with the
+     mobile palette above. Values match code.html exactly — many look close to
+     the mobile tokens but differ (surface-container, on-surface, primary-
+     container, success, error), so the dashboard owns its own set. */
+  --color-dash-background: #f8f9fa;
+  --color-dash-surface: #f8f9fa;
+  --color-dash-on-surface: #1a1c1e;
+  --color-dash-on-surface-variant: #43474e;
+  --color-dash-surface-container-low: #f1f4fa;
+  --color-dash-surface-container: #edeff4;
+  --color-dash-surface-container-high: #e7e8eb;
+  --color-dash-surface-container-highest: #e2e2e5;
+  --color-dash-primary: #005bbf;
+  --color-dash-on-primary: #ffffff;
+  --color-dash-primary-container: #cfe4ff;
+  --color-dash-on-primary-container: #001d33;
+  --color-dash-secondary-container: #d4e4f6;
+  --color-dash-on-secondary-container: #0f1c2b;
+  --color-dash-success: #198754;
+  --color-dash-on-success: #ffffff;
+  --color-dash-success-container: #d1e7dd;
+  --color-dash-on-success-container: #0a3622;
+  --color-dash-error: #ba1a1a;
+  --color-dash-on-error: #ffffff;
+  --color-dash-error-container: #ffdad6;
+  --color-dash-on-error-container: #410002;
+  --color-dash-warning: #ffc107;
+  --color-dash-on-warning: #000000;
+  --color-dash-warning-container: #fff3cd;
+  --color-dash-on-warning-container: #664d03;
+  --color-dash-outline: #73777f;
+  --color-dash-outline-variant: #c3c6cf;
+
+  /* Dashboard type scale (code.html) */
+  --text-dash-metric-xl: 40px;
+  --text-dash-metric-xl--line-height: 1;
+  --text-dash-metric-xl--letter-spacing: -0.05em;
+  --text-dash-metric-xl--font-weight: 700;
+  --text-dash-headline-lg: 32px;
+  --text-dash-headline-lg--line-height: 1.2;
+  --text-dash-headline-lg--letter-spacing: -0.01em;
+  --text-dash-headline-lg--font-weight: 600;
+  --text-dash-label-md: 11px;
+  --text-dash-label-md--line-height: 1;
+  --text-dash-label-md--letter-spacing: 0.05em;
+  --text-dash-label-md--font-weight: 500;
+  --text-dash-body-sm: 12px;
+  --text-dash-body-sm--line-height: 1.5;
 }
 
 /* Horizontal scroll rows that hide the scrollbar (chips, tabs) */
@@ -60,6 +115,24 @@
     display: none;
   }
   scrollbar-width: none;
+}
+
+/* Dashboard "live" pulse dot — a 3-tier ring pulse (mirrors code.html), not
+   Tailwind's opacity animate-pulse. Decorative; disabled for reduced motion. */
+@keyframes dash-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(25 135 84 / 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgb(25 135 84 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(25 135 84 / 0);
+  }
+}
+
+@utility pulse-dot {
+  animation: dash-pulse 2s infinite;
 }
 
 @layer base {
@@ -73,5 +146,20 @@
     font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
     line-height: 1;
     user-select: none;
+  }
+
+  /* Outlined glyphs for the dashboard — FILL 0 + the Outlined family so they
+     render as crisp line icons, not rounded-filled shapes. */
+  .material-symbols-outlined {
+    font-family: var(--font-icon-outlined);
+    font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+    line-height: 1;
+    user-select: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pulse-dot {
+      animation: none;
+    }
   }
 }

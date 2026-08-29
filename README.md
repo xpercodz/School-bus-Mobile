@@ -1,12 +1,16 @@
-# School Bus Mobile
+# School Bus Transit
 
-Mobile-first school bus attendance UI for **Bus #04 • Morning Run** — roster with
-live status (Boarded / Waiting / Dropped Off / Absent), search, and status filter
-tabs. Built as a Next.js (App Router, TypeScript, Tailwind v4) web app.
+One Next.js (App Router, TypeScript, Tailwind v4) app with two sections:
 
-**UI only.** No backend, auth, or database yet — the roster is served by a typed
-mock module (`src/data/students.ts`) that swaps for Firestore later. See
-[`APP_OVERVIEW.md`](./APP_OVERVIEW.md) for the full picture.
+- **`/` (mobile)** — the **Bus #04 • Morning Run** attendance roster: live status
+  (Boarded / Waiting / Dropped Off / Absent), search, and status filter tabs.
+- **`/dashboard` (desktop)** — the director's **School Transit Live Monitor**:
+  KPI cards, active fleet grid, and a live student attendance table.
+
+Both sections read from **Firebase** (Auth + Firestore) when configured and
+signed in, and fall back to typed mock modules (`src/data/students.ts`,
+`src/data/dashboard.ts`) otherwise. See [`APP_OVERVIEW.md`](./APP_OVERVIEW.md)
+for the full picture and [`SECURITY.md`](./SECURITY.md) for the security model.
 
 ## Getting Started
 

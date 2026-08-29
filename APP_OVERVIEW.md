@@ -1,78 +1,141 @@
-# APP_OVERVIEW — School Bus Mobile
+# APP_OVERVIEW — School Bus Transit
 
-Mobile-first school bus attendance app. This is the canonical architecture
-document for the repo — keep it accurate as the project evolves.
+School bus attendance and transit monitoring. One Next.js app, two sections:
+a **mobile-first** attendance roster (bus monitors) and a **desktop dashboard**
+(the school director). This is the canonical architecture document for the
+repo — keep it accurate as the project evolves.
 
 ## Stack
 
-- **Framework:** Next.js (App Router) + React 19 + TypeScript — mobile-first web app
+- **Framework:** Next.js (App Router) + React 19 + TypeScript
 - **Styling:** Tailwind CSS v4 (CSS-first config in `src/app/globals.css`)
-- **Fonts:** Inter (`next/font/google`), Material Symbols Rounded (Google Fonts CDN)
-- **Backend:** **none yet** — Firebase (Auth + Firestore) planned for a later phase
+- **Fonts:** Inter + JetBrains Mono (`next/font/google`), Material Symbols
+  Rounded + Outlined (Google Fonts CDN)
+- **Backend:** **Firebase** — Auth (email/password) + Cloud Firestore, shared by
+  both sections. Config in `.env.local` (`NEXT_PUBLIC_FIREBASE_*`), client SDK
+  init in `src/lib/firebase.ts`. UI falls back to mock data when unconfigured
+  or signed out.
 
-## Scope (current)
+## Routing
 
-One screen, faithful to the Stitch design (`DESIGN.md` / `code.html` in
-`~/Downloads`): **Bus #04 • Morning Run** — an attendance roster with:
+```
+/            (mobile) group  — phone-column roster (Bus #04 • Morning Run)
+/dashboard   dashboard/      — director "School Transit Live Monitor"
+/login       login/          — email/password sign-in
+```
 
-- Top app bar (bus icon, run title, overflow menu)
-- Status summary chips — Boarded / Dropped Off / Waiting counts
-- Student search (pill field, case-insensitive, clear button)
-- Segmented filter tabs — All / Waiting / Boarded / Done (counts derived from data)
-- Roster cards with per-status styling (BOARDED / WAITING / DROPPED OFF / ABSENT)
-- Bottom bar — sync status + disabled "Complete Run" action
+**Role-based access:** after login, `staff` (bus monitor/driver) lands on `/`,
+`director` on `/dashboard`. The dashboard is wrapped in `RequireRole
+role="director"` (`src/components/RequireRole.tsx`) — signed-out visitors go to
+`/login`, non-directors bounce back to `/`. The dashboard sidebar shows the
+signed-in school's name (`src/lib/school.ts`), so each tenant sees their own.
 
-Interactions are local-only for now: search, tab filtering, and tapping a
-student's status pill cycles its status (demo affordance to reach every card
-variant). The `more_vert` buttons are intentionally inert.
+- `src/app/(mobile)/layout.tsx` — the phone-column shell (`max-w-[480px]`);
+  `(mobile)/page.tsx` is the attendance screen. URL stays `/`.
+- `src/app/dashboard/layout.tsx` — desktop shell: fixed `Sidebar` + sticky
+  `TopBar`. `dashboard/page.tsx` is the Live Monitor screen.
+- `src/app/providers.tsx` wraps the tree in the auth provider (`src/lib/auth.tsx`).
+- One root layout (`src/app/layout.tsx`) provides fonts + icon CDN for both.
+- Dashboard is **desktop-only by design** (fixed `w-64` sidebar); not responsive
+  below tablet. Known limitation, matches the design.
+- Sidebar nav sections (Fleet Status, Routes, Analytics, Reports) are inert
+  links in the UI-only build — future routes under `dashboard/` share the shell.
+
+## Mobile screen (Bus #04 • Morning Run)
+
+Faithful to the Stitch design: attendance roster with status summary chips,
+student search, segmented filter tabs (All / Waiting / Boarded / Done), roster
+cards per status, and a bottom bar. When signed in, the roster reads the
+school's current run from Firestore and tapping a student's status pill writes
+the new status back; signed out, it runs on the mock roster (local cycling).
+See the git history for the original one-screen build.
+
+## Director dashboard (School Transit Live Monitor)
+
+Faithful to the Stitch `code.html` — a **light Material 3** admin UI (the
+folder's `DESIGN.md` is a stale dark "Command Center" concept and is **not**
+the rendered design). One screen: the Live Monitor.
+
+- **KPI cards** — Total Assigned / Currently Onboard (live pulse) / Safely
+  Dropped Off / Marked Absent-Pending (error accent).
+- **Active Fleet grid** — bus cards (route progress, In/Out/Wait counts).
+- **Live Student Attendance table** — student name, grade, bus #, morning
+  boarded, drop-off time, status badge, call/history actions.
+- **Filter bar** — date chip (inert), Morning Pickup / Afternoon Drop-off
+  segment control, student search (filters the table live), Export (inert).
 
 ## Data model
 
-All data is defined in `src/data/students.ts` — the single source of truth.
-Chips, tabs, and the roster all derive their counts from the same typed module,
-so they can never disagree.
+### Firestore schema (multi-school, tenant-isolated)
 
-```ts
-type StudentStatus = "BOARDED" | "WAITING" | "DROPPED_OFF" | "ABSENT";
-
-interface Student {
-  id: string;
-  name: string;
-  grade: string;
-  status: StudentStatus;
-}
+```
+users/{uid}                          { role: "director"|"staff", schoolId, email }
+schools/{schoolId}                   { name }
+schools/{schoolId}/students/{id}     { name, grade, busId }
+schools/{schoolId}/buses/{id}        { name, driver }
+schools/{schoolId}/runs/{id}         { busId, runType, date, status }
+schools/{schoolId}/attendance/{id}   { runId, date, busId, busName, studentName,
+                                       grade, status, boardedAt, droppedOffAt }
 ```
 
-`STUDENTS` is mock data (12 entries). Firebase phase: replace with a Firestore
-query returning the same `Student` shape — no component changes required.
-`STATUS_META` centralizes per-status presentation (icon, pill label/classes,
-card/name overrides); `CHIPS`/`TABS` define the summary chips and filter tabs.
+- **Tenant isolation:** everything lives under `schools/{schoolId}`; the rules
+  only ever expose the caller's own school (`users/{uid}.schoolId`).
+- **Attendance is denormalized** (a flat per-school collection, one doc per
+  run+student) so both views are single-query realtime reads:
+  mobile reads `where runId == X`, dashboard reads `where date == today`.
+- Run ids are deterministic: `${busId}-${yyyy-mm-dd}-${runType}`.
+
+### App data access
+
+- `src/data/students.ts` + `src/data/dashboard.ts` — typed **mock** fallbacks
+  (used when Firebase is unconfigured or the user is signed out).
+- `src/lib/school-data.ts` — `useRunRoster()` (mobile roster + status writes)
+  and `useDashboardData()` (KPIs / fleet / attendance). Both `onSnapshot`
+  Firestore and fall back to the mocks when not live.
+- `scripts/seed.mjs` — one-time bootstrap (Admin SDK): creates a **director**
+  and a **staff** (bus monitor) user + profiles, a demo school, 4 buses, 32
+  students, and today's morning runs with attendance. Idempotent — safe to
+  re-run. Env-overridable (`DIRECTOR_*`, `STAFF_*`, `SCHOOL_ID`).
 
 ## UI system
 
-Material 3 light theme ("Material Utility"). All design tokens live in the
-`@theme` block of `src/app/globals.css`: color roles (`surface*`, `primary`,
-`success`/`waiting`/`error`), type scale (`headline-md`, `body-lg/md`,
-`label-lg`), and the Level-1 card shadow. Spacing is Tailwind's default 4px
-unit; touch targets are ≥48px.
+Material 3 light for both sections. Tokens live in the `@theme` block of
+`src/app/globals.css`:
 
-Two small deliberate a11y deviations from the generated mockup (`code.html`):
-the status-pill text and chip icons use `on-success` (`#137333`) / the ABSENT
-name uses `on-error-container` (`#93000a`) so they pass WCAG AA contrast (the
-mockup's `#1e8e3e`/`#d93025` fail at 3.7:1 / 4.35:1), and the status pill is
-48px tall per the design spec's touch-target rule (the mockup rendered it at
-40px).
-
-Components under `src/components/` are small and presentational; state lives
-only in `src/app/page.tsx`.
+- **Mobile palette** — `surface`/`on-surface`/`primary`/`success`/`waiting`/
+  `error` (Material Utility tokens, per the mobile `DESIGN.md`).
+- **Dashboard palette** — fully namespaced `--color-dash-*` (values per the
+  dashboard `code.html`). Deliberately **not** shared with the mobile palette:
+  several values look alike but differ (`surface-container`, `on-surface`,
+  `primary-container`, `success`, `error`), and scoping means a mobile token
+  change can never bleed into `/dashboard`.
+- Type scale: mobile `headline-md`/`body-lg`/`body-md`/`label-lg`; dashboard
+  `dash-metric-xl` (JetBrains Mono, for numbers) + `dash-headline-lg`/
+  `dash-label-md`/`dash-body-sm`.
+- **Icons:** `src/components/Icon.tsx` takes a `variant` prop —
+  `"rounded"` (filled, mobile) or `"outlined"` (line, dashboard). Both font
+  families are loaded from the CDN.
 
 ## Layout
 
-Centered phone column (`max-w-[480px]`, `sm:border-x`) with sticky top app bar
-and bottom bar inside the column — looks like a mobile app at any viewport
-width. 16px side margins, single column, fluid 4px-grid spacing.
+- **Mobile:** centered phone column (`max-w-[480px]`, `sm:border-x`) with
+  sticky top app bar and bottom bar, from `(mobile)/layout.tsx`.
+- **Dashboard:** fixed `w-64` sidebar + `ml-64` main with a sticky top bar
+  and sticky filter bar (`sticky top-0` / `top-16`). Document scrolls normally —
+  do not convert the shell to an `h-screen overflow-hidden` flex (it breaks the
+  sticky offsets).
 
 ## Deployment
 
 Not deployed yet. Standard Next.js build (`npm run build`); candidate for
-Vercel or a PWA when Firebase lands.
+Vercel or a PWA. `/`, `/dashboard`, and `/login` ship in the same build.
+
+Firebase lifecycle (one-time + per-change):
+- `node scripts/seed.mjs` — bootstrap the director user + demo data (needs a
+  service-account key at `service-account.json` or `FIREBASE_SERVICE_ACCOUNT`).
+- `firebase deploy --only firestore:rules` — push `firestore.rules` (after any
+  rules edit).
+
+Known limitation / next step: per-tenant onboarding (creating a school + its
+users from a meeting) is done via the seed script rather than a UI — a small
+provisioning page or CLI is the natural next increment as tenants grow.

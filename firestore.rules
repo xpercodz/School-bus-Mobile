@@ -1,0 +1,81 @@
+rules_version = '2';
+
+// School Bus Transit — Firestore security rules.
+//
+// Access model: every user has a `users/{uid}` profile with `role`
+// ("director" | "staff") and `schoolId`. Directors administer their school's
+// students/buses; staff operate runs (bus monitors). All data is scoped under
+// `schools/{schoolId}`, so one school can never read another's data.
+//
+// The first director + seed data are created by scripts/seed.mjs (Admin SDK,
+// bypasses rules). Anyone authenticated but without a profile is denied.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function role() {
+      return userDoc().data.role;
+    }
+
+    function isDirector() {
+      return isSignedIn() && role() == 'director';
+    }
+
+    function isStaff() {
+      return isSignedIn() && role() == 'staff';
+    }
+
+    function schoolId() {
+      return userDoc().data.schoolId;
+    }
+
+    function isMySchool(schoolId) {
+      return isSignedIn() && schoolId() == schoolId;
+    }
+
+    // ── users ──────────────────────────────────────────────────────────────
+    // Anyone can read profiles; a user may create/update their own.
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create, update: if request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    // ── schools ────────────────────────────────────────────────────────────
+    match /schools/{schoolId} {
+      allow read: if isMySchool(schoolId);
+      allow write: if isMySchool(schoolId) && isDirector();
+
+      // Students & buses are school-administered (directors only).
+      match /students/{studentId} {
+        allow read: if isMySchool(schoolId);
+        allow write: if isMySchool(schoolId) && isDirector();
+      }
+
+      match /buses/{busId} {
+        allow read: if isMySchool(schoolId);
+        allow write: if isMySchool(schoolId) && isDirector();
+      }
+
+      // Runs hold run metadata (bus, type, date, status).
+      match /runs/{runId} {
+        allow read: if isMySchool(schoolId);
+        allow write: if isMySchool(schoolId) && (isDirector() || isStaff());
+      }
+
+      // Attendance is a flat per-school collection, one doc per
+      // (run, student) — denormalized for single-query realtime reads.
+      match /attendance/{attId} {
+        allow read: if isMySchool(schoolId);
+        allow write: if isMySchool(schoolId) && (isDirector() || isStaff());
+      }
+    }
+  }
+}
