@@ -6,6 +6,9 @@
  * dashboard and the mobile roster always show the same students. When Firebase
  * lands, this module becomes the repository for KPIs/buses while the roster rows
  * follow the same Firestore query as the mobile screen.
+ *
+ * User-facing labels (KPIs, nav, run segments) are resolved by components via
+ * `t()` (i18n) — only ids and layout config live here.
  */
 
 import type { StudentStatus } from "@/data/students";
@@ -17,14 +20,6 @@ export const DASH_STATUS_META: Record<StudentStatus, string> = {
   DROPPED_OFF: "bg-dash-success text-dash-on-success border-dash-success",
   ABSENT: "bg-dash-error-container text-dash-on-error-container border-dash-error/30",
   WAITING: "bg-dash-warning-container text-dash-on-warning-container border-dash-warning/50",
-};
-
-/** Human label for each status badge. */
-export const DASH_STATUS_LABEL: Record<StudentStatus, string> = {
-  BOARDED: "Boarded",
-  DROPPED_OFF: "Dropped Off",
-  ABSENT: "Absent",
-  WAITING: "Waiting",
 };
 
 export type MetricTone = "default" | "success" | "error";
@@ -43,6 +38,12 @@ export interface KPI {
   footerIcon?: string;
 }
 
+/**
+ * KPI config without the localizable label/footer — those are filled in by
+ * `useDashboardData` from the active locale so the same cards translate.
+ */
+export type KPIBase = Omit<KPI, "label" | "footer">;
+
 export interface Bus {
   id: string;
   name: string;
@@ -56,7 +57,6 @@ export interface Bus {
 
 export interface NavItem {
   id: string;
-  label: string;
   icon: string;
   /** Only set for the built page; other sections are inert in the UI-only build. */
   href?: string;
@@ -72,32 +72,11 @@ export interface AttendanceRow {
   dropOffTime: string;
 }
 
-export const KPIS: readonly KPI[] = [
-  { id: "total", label: "Total Assigned", value: 320, footer: "System Total", tone: "default" },
-  {
-    id: "onboard",
-    label: "Currently Onboard",
-    value: 210,
-    footer: "+5 in last min",
-    tone: "success",
-    pulse: true,
-  },
-  {
-    id: "dropped",
-    label: "Safely Dropped Off",
-    value: 95,
-    footer: "Arrived at Campus",
-    tone: "default",
-    labelAccent: "success",
-  },
-  {
-    id: "absent",
-    label: "Marked Absent / Pending",
-    value: 15,
-    footer: "Action Required",
-    tone: "error",
-    footerIcon: "warning",
-  },
+export const KPIS: readonly KPIBase[] = [
+  { id: "total", value: 320, tone: "default" },
+  { id: "onboard", value: 210, tone: "success", pulse: true },
+  { id: "dropped", value: 95, tone: "default", labelAccent: "success" },
+  { id: "absent", value: 15, tone: "error", footerIcon: "warning" },
 ];
 
 export const BUSES: readonly Bus[] = [
@@ -106,17 +85,14 @@ export const BUSES: readonly Bus[] = [
 ];
 
 export const NAV_ITEMS: readonly NavItem[] = [
-  { id: "live-map", label: "Live Map", icon: "map", href: "/dashboard" },
-  { id: "fleet", label: "Fleet Status", icon: "directions_bus" },
-  { id: "routes", label: "Routes", icon: "route" },
-  { id: "analytics", label: "Analytics", icon: "monitoring" },
-  { id: "reports", label: "Reports", icon: "assessment" },
+  { id: "live-map", icon: "map", href: "/dashboard" },
+  { id: "fleet", icon: "directions_bus" },
+  { id: "routes", icon: "route" },
+  { id: "analytics", icon: "monitoring" },
+  { id: "reports", icon: "assessment" },
 ];
 
-export const RUN_SEGMENTS = [
-  { id: "morning", label: "Morning Pickup" },
-  { id: "afternoon", label: "Afternoon Drop-off" },
-] as const;
+export const RUN_SEGMENTS = [{ id: "morning" }, { id: "afternoon" }] as const;
 
 export type RunSegmentId = (typeof RUN_SEGMENTS)[number]["id"];
 

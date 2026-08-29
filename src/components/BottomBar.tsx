@@ -1,11 +1,16 @@
+"use client";
+
 import { Icon } from "@/components/Icon";
+import { useLocale } from "@/lib/i18n/context";
 
 export function BottomBar() {
+  const { t } = useLocale();
+
   return (
     <footer className="sticky bottom-0 z-50 flex h-20 items-center justify-between border-t border-outline-variant bg-surface-container px-4">
       <div className="flex items-center gap-2 px-2 text-label-lg text-primary">
         <Icon name="cloud_done" size={18} />
-        Sync Status
+        {t("mobile.syncStatus")}
       </div>
       <button
         type="button"
@@ -13,7 +18,7 @@ export function BottomBar() {
         className="flex h-14 cursor-not-allowed items-center gap-2 rounded-full bg-surface-variant px-8 text-label-lg text-on-surface-variant opacity-50"
       >
         <Icon name="check" />
-        Complete Run
+        {t("mobile.completeRun")}
       </button>
     </footer>
   );

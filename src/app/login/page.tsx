@@ -7,12 +7,15 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { useUserProfile } from "@/lib/user-profile";
+import { useLocale } from "@/lib/i18n/context";
 import { Icon } from "@/components/Icon";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 export default function LoginPage() {
   const router = useRouter();
   const { user, status } = useAuth();
   const { profile, loading: profileLoading } = useUserProfile();
+  const { t } = useLocale();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -34,8 +37,7 @@ export default function LoginPage() {
       await signInWithEmailAndPassword(auth, email.trim(), password);
       router.replace("/dashboard");
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Sign in failed. Check your email and password.";
+      const message = err instanceof Error ? err.message : t("login.fallbackError");
       setError(message);
     } finally {
       setSubmitting(false);
@@ -44,19 +46,21 @@ export default function LoginPage() {
 
   if (!isFirebaseConfigured) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-surface px-4">
+      <div className="relative flex min-h-dvh items-center justify-center bg-surface px-4">
+        <div className="absolute end-4 top-4">
+          <LanguageToggle />
+        </div>
         <div className="w-full max-w-sm rounded-2xl border border-outline-variant bg-surface-container-lowest p-8 text-center">
           <Icon name="cloud_off" size={40} className="mx-auto text-on-surface-variant" />
-          <h1 className="mt-4 text-headline-md">Firebase not configured</h1>
+          <h1 className="mt-4 text-headline-md">{t("login.notConfiguredTitle")}</h1>
           <p className="mt-2 text-body-md text-on-surface-variant">
-            Fill the keys in <code>.env.local</code> to enable sign-in. The app is running on
-            mock data.
+            {t("login.notConfiguredBody", { code: ".env.local" })}
           </p>
           <Link
             href="/"
             className="mt-6 inline-flex h-12 items-center justify-center rounded-full bg-primary px-6 text-label-lg text-on-primary"
           >
-            Back to the app
+            {t("login.backToApp")}
           </Link>
         </div>
       </div>
@@ -64,18 +68,21 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-surface px-4">
+    <div className="relative flex min-h-dvh items-center justify-center bg-surface px-4">
+      <div className="absolute end-4 top-4">
+        <LanguageToggle />
+      </div>
       <div className="w-full max-w-sm rounded-2xl border border-outline-variant bg-surface-container-lowest p-8">
         <div className="flex items-center gap-2">
           <Icon name="directions_bus" className="text-primary" />
-          <h1 className="text-headline-md">School Bus Transit</h1>
+          <h1 className="text-headline-md">{t("login.heading")}</h1>
         </div>
-        <p className="mt-1 text-body-md text-on-surface-variant">Sign in to continue</p>
+        <p className="mt-1 text-body-md text-on-surface-variant">{t("login.subtitle")}</p>
 
         <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
           <div>
             <label htmlFor="email" className="text-label-lg text-on-surface">
-              Email
+              {t("login.email")}
             </label>
             <input
               id="email"
@@ -85,12 +92,12 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="mt-1 h-14 w-full rounded-full bg-surface-container-high px-4 text-body-lg text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:bg-surface-container-highest focus:ring-2 focus:ring-primary"
-              placeholder="you@school.edu"
+              placeholder={t("login.emailPlaceholder")}
             />
           </div>
           <div>
             <label htmlFor="password" className="text-label-lg text-on-surface">
-              Password
+              {t("login.password")}
             </label>
             <input
               id="password"
@@ -100,7 +107,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="mt-1 h-14 w-full rounded-full bg-surface-container-high px-4 text-body-lg text-on-surface outline-none transition-colors placeholder:text-on-surface-variant focus:bg-surface-container-highest focus:ring-2 focus:ring-primary"
-              placeholder="••••••••"
+              placeholder={t("login.passwordPlaceholder")}
             />
           </div>
 
@@ -120,7 +127,7 @@ export default function LoginPage() {
             ) : (
               <Icon name="login" />
             )}
-            Sign in
+            {t("login.signIn")}
           </button>
         </form>
       </div>

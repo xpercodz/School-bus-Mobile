@@ -1,16 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useLocale } from "@/lib/i18n/context";
+import { formatTime } from "@/lib/i18n/format";
 
 /**
- * Live 12-hour clock for the dashboard header.
+ * Live clock for the dashboard header.
  *
- * Ticks every second and renders HH:MM:SS AM. Hydration-safe: the client
- * starts with `now === null` (matching the server's first paint of "--:--:--")
- * and only begins ticking after mount. Decorative, so no aria-live — it
- * would announce every second to screen readers.
+ * Ticks every second and renders a locale-aware time (12-hour with Eastern
+ * Arabic digits + ص/م for ar). Hydration-safe: the client starts with
+ * `now === null` (matching the server's first paint of "--:--:--") and only
+ * begins ticking after mount. Decorative, so no aria-live — it would announce
+ * every second to screen readers.
  */
 export function LiveClock() {
+  const { locale } = useLocale();
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -20,16 +24,7 @@ export function LiveClock() {
 
   return (
     <span className="font-mono text-sm tabular-nums text-dash-on-surface-variant">
-      {now ? formatTime(now) : "--:--:--"}
+      {now ? formatTime(now, locale) : "--:--:--"}
     </span>
   );
-}
-
-/** Format a Date as 12-hour HH:MM:SS AM (matches code.html's clock script). */
-function formatTime(date: Date): string {
-  const rawHours = date.getHours();
-  const hours = rawHours % 12 === 0 ? 12 : rawHours % 12;
-  const ampm = rawHours >= 12 ? "PM" : "AM";
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${pad(hours)}:${pad(date.getMinutes())}:${pad(date.getSeconds())} ${ampm}`;
 }

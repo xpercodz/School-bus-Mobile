@@ -1,7 +1,11 @@
+"use client";
+
 import type { AttendanceRow } from "@/data/dashboard";
-import { DASH_STATUS_LABEL, DASH_STATUS_META } from "@/data/dashboard";
+import { DASH_STATUS_META } from "@/data/dashboard";
 import type { StudentStatus } from "@/data/students";
 import { Icon } from "@/components/Icon";
+import { useLocale } from "@/lib/i18n/context";
+import { statusKey, toLocaleDigits, translateDataLabel } from "@/lib/i18n/format";
 
 interface AttendanceTableProps {
   rows: readonly AttendanceRow[];
@@ -21,43 +25,54 @@ function timeCellClass(value: string): string {
 
 /** Live student attendance table — the roster rows derived from the shared STUDENTS list. */
 export function AttendanceTable({ rows }: AttendanceTableProps) {
+  const { t, locale, dir } = useLocale();
+  const ltr = dir === "ltr";
+
   return (
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between border-b border-dash-outline-variant pb-2">
-        <h2 className="flex items-center gap-2 text-dash-label-md uppercase tracking-widest text-dash-on-surface">
+        <h2
+          className={`flex items-center gap-2 text-dash-label-md uppercase text-dash-on-surface ${
+            ltr ? "tracking-widest" : ""
+          }`}
+        >
           <Icon name="history_edu" size={18} variant="outlined" />
-          Live Student Attendance
+          {t("dashboard.liveAttendance")}
         </h2>
         <div className="flex items-center gap-2 text-dash-label-md text-dash-success">
           <span className="pulse-dot h-2 w-2 rounded-full bg-dash-success" aria-hidden="true" />
-          Live Updating
+          {t("dashboard.liveUpdating")}
         </div>
       </div>
       <div className="overflow-x-auto rounded border border-dash-outline-variant bg-dash-surface">
-        <table className="w-full min-w-[800px] border-collapse text-left">
-          <caption className="sr-only">Live student attendance</caption>
-          <thead className="border-b border-dash-outline-variant bg-dash-surface-container text-dash-label-md uppercase tracking-wider text-dash-on-surface-variant">
+        <table className="w-full min-w-[800px] border-collapse text-start">
+          <caption className="sr-only">{t("dashboard.caption")}</caption>
+          <thead
+            className={`border-b border-dash-outline-variant bg-dash-surface-container text-dash-label-md uppercase text-dash-on-surface-variant ${
+              ltr ? "tracking-wider" : ""
+            }`}
+          >
             <tr>
               <th scope="col" className="h-12 px-4 py-3 font-medium">
-                Student Name
+                {t("dashboard.th.studentName")}
               </th>
               <th scope="col" className="h-12 px-4 py-3 font-medium">
-                Grade
+                {t("dashboard.th.grade")}
               </th>
               <th scope="col" className="h-12 px-4 py-3 font-medium">
-                Bus #
+                {t("dashboard.th.bus")}
               </th>
               <th scope="col" className="h-12 px-4 py-3 font-medium">
-                Morning Boarded
+                {t("dashboard.th.morningBoarded")}
               </th>
               <th scope="col" className="h-12 px-4 py-3 font-medium">
-                Drop-off Time
+                {t("dashboard.th.dropOffTime")}
               </th>
               <th scope="col" className="h-12 px-4 py-3 font-medium">
-                Current Status
+                {t("dashboard.th.currentStatus")}
               </th>
-              <th scope="col" className="h-12 px-4 py-3 text-right font-medium">
-                Actions
+              <th scope="col" className="h-12 px-4 py-3 text-end font-medium">
+                {t("dashboard.th.actions")}
               </th>
             </tr>
           </thead>
@@ -67,8 +82,10 @@ export function AttendanceTable({ rows }: AttendanceTableProps) {
                 <td colSpan={7} className="px-4 py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <Icon name="search_off" size={32} variant="outlined" />
-                    <p className="font-medium text-dash-on-surface">No students found</p>
-                    <p className="text-dash-body-sm text-dash-on-surface-variant">Try a different name</p>
+                    <p className="font-medium text-dash-on-surface">{t("dashboard.emptyTitle")}</p>
+                    <p className="text-dash-body-sm text-dash-on-surface-variant">
+                      {t("dashboard.emptySubtitle")}
+                    </p>
                   </div>
                 </td>
               </tr>
@@ -81,8 +98,12 @@ export function AttendanceTable({ rows }: AttendanceTableProps) {
                   <th scope="row" className="h-12 px-4 py-2 font-medium text-dash-on-surface">
                     {row.name}
                   </th>
-                  <td className="px-4 py-2 text-dash-on-surface-variant">{row.grade}</td>
-                  <td className="px-4 py-2 font-mono text-dash-body-sm">{row.bus}</td>
+                  <td className="px-4 py-2 text-dash-on-surface-variant">
+                    {translateDataLabel(row.grade, locale, t)}
+                  </td>
+                  <td className="px-4 py-2 font-mono text-dash-body-sm">
+                    {toLocaleDigits(row.bus, locale)}
+                  </td>
                   <td className={`px-4 py-2 font-mono text-dash-body-sm ${timeCellClass(row.morningBoarded)}`}>
                     {row.morningBoarded}
                   </td>
@@ -93,20 +114,20 @@ export function AttendanceTable({ rows }: AttendanceTableProps) {
                     <span
                       className={`inline-flex items-center rounded border px-2 py-0.5 text-[10px] font-bold uppercase ${DASH_STATUS_META[row.status]}`}
                     >
-                      {DASH_STATUS_LABEL[row.status]}
+                      {t(statusKey(row.status))}
                     </span>
                   </td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 text-end">
                     <button
                       type="button"
-                      aria-label={`Call ${row.name}`}
+                      aria-label={t("dashboard.callAria", { name: row.name })}
                       className="inline-flex h-10 w-10 items-center justify-center rounded-full text-dash-on-surface-variant transition-colors hover:bg-dash-surface-container-high hover:text-dash-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dash-primary"
                     >
                       <Icon name="call" size={16} variant="outlined" />
                     </button>
                     <button
                       type="button"
-                      aria-label={`View history for ${row.name}`}
+                      aria-label={t("dashboard.historyAria", { name: row.name })}
                       className="inline-flex h-10 w-10 items-center justify-center rounded-full text-dash-on-surface-variant transition-colors hover:bg-dash-surface-container-high hover:text-dash-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dash-primary"
                     >
                       <Icon name="history" size={16} variant="outlined" />

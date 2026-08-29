@@ -11,9 +11,11 @@ import { SearchBar } from "@/components/SearchBar";
 import { SegmentedTabs } from "@/components/SegmentedTabs";
 import { StatusChips } from "@/components/StatusChips";
 import { TopAppBar } from "@/components/TopAppBar";
+import { useLocale } from "@/lib/i18n/context";
 
 export default function Home() {
   const { roster, loading, live, cycleStatus } = useRunRoster();
+  const { t } = useLocale();
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<TabId>("all");
 
@@ -38,7 +40,7 @@ export default function Home() {
         {live && loading ? (
           <div role="status" className="flex flex-col items-center gap-2 py-16 text-center">
             <Icon name="progress_activity" size={32} className="animate-spin text-on-surface-variant" />
-            <p className="text-body-lg font-medium">Loading roster…</p>
+            <p className="text-body-lg font-medium">{t("mobile.loading")}</p>
           </div>
         ) : (
           <RosterList students={filtered} onCycleStatus={cycleStatus} />

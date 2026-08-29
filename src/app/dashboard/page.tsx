@@ -8,9 +8,13 @@ import { BusCard } from "@/components/dashboard/BusCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { Icon } from "@/components/Icon";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { useLocale } from "@/lib/i18n/context";
+import { toLocaleDigits } from "@/lib/i18n/format";
 
 export default function DashboardPage() {
   const { kpis, buses, attendance, loading, live } = useDashboardData();
+  const { t, dir, locale } = useLocale();
+  const ltr = dir === "ltr";
   const [query, setQuery] = useState("");
   const [segment, setSegment] = useState<RunSegmentId>("morning");
 
@@ -37,7 +41,7 @@ export default function DashboardPage() {
         {live && loading && (
           <div role="status" className="flex items-center gap-2 text-dash-body-sm text-dash-on-surface-variant">
             <Icon name="progress_activity" size={16} variant="outlined" className="animate-spin" />
-            Loading live data…
+            {t("dashboard.loading")}
           </div>
         )}
 
@@ -51,12 +55,18 @@ export default function DashboardPage() {
         {/* Active fleet */}
         <section className="flex flex-col gap-4">
           <div className="flex items-center justify-between border-b border-dash-outline-variant pb-2">
-            <h2 className="flex items-center gap-2 text-dash-label-md text-dash-on-surface uppercase tracking-widest">
+            <h2
+              className={`flex items-center gap-2 text-dash-label-md text-dash-on-surface uppercase ${
+                ltr ? "tracking-widest" : ""
+              }`}
+            >
               <Icon name="directions_bus" size={18} variant="outlined" />
-              Active Fleet Status
+              {t("dashboard.activeFleet")}
             </h2>
             <span className="text-dash-body-sm text-dash-on-surface-variant">
-              {enRoute} {enRoute === 1 ? "Bus" : "Buses"} En Route
+              {enRoute === 1
+                ? t("dashboard.enRouteOne", { count: toLocaleDigits(String(enRoute), locale) })
+                : t("dashboard.enRouteMany", { count: toLocaleDigits(String(enRoute), locale) })}
             </span>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">

@@ -15,8 +15,11 @@ import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import type { Student, StudentStatus } from "@/data/students";
 import { STATUS_CYCLE, STUDENTS } from "@/data/students";
-import type { Bus, KPI } from "@/data/dashboard";
+import type { Bus, KPI, KPIBase } from "@/data/dashboard";
 import { ATTENDANCE, BUSES, KPIS, type AttendanceRow } from "@/data/dashboard";
+import { useLocale } from "@/lib/i18n/context";
+import { formatTime, localizeTimeString } from "@/lib/i18n/format";
+import type { MessageKey, TFunction } from "@/lib/i18n/types";
 
 /** The mobile roster always shows Bus #04's morning run (matches the design). */
 export const ROSTER_BUS_ID = "bus04";
@@ -47,13 +50,18 @@ async function fetchSchoolId(uid: string): Promise<string | null> {
   }
 }
 
-function formatTime(ts: Timestamp | null): string {
-  if (!ts) return "--:--:--";
-  const d = ts.toDate();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const hours = d.getHours();
-  const h12 = hours % 12 === 0 ? 12 : hours % 12;
-  return `${pad(h12)}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${hours >= 12 ? "PM" : "AM"}`;
+/** Build dashboard KPI cards with the active locale's label/footer text. */
+function buildKpis(
+  base: readonly KPIBase[],
+  values: number[],
+  t: TFunction,
+): KPI[] {
+  return base.map((kpi, index) => ({
+    ...kpi,
+    label: t(`kpi.${kpi.id}.label` as MessageKey),
+    footer: t(`kpi.${kpi.id}.footer` as MessageKey),
+    value: values[index] ?? kpi.value,
+  }));
 }
 
 function countByStatus(rows: AttendanceDoc[], status: StudentStatus): number {
@@ -201,6 +209,7 @@ export function useDashboardData(): DashboardData {
   const live = useLiveFlag();
   const { user } = useAuth();
   const uid = user?.uid;
+  const { locale, t } = useLocale();
 
   const [attendance, setAttendance] = useState<AttendanceDoc[]>([]);
   const [buses, setBuses] = useState<BusDoc[]>([]);
@@ -282,15 +291,26 @@ export function useDashboardData(): DashboardData {
 
   const data = useMemo<DashboardData>(() => {
     if (!live) {
-      return { kpis: KPIS, buses: BUSES, attendance: ATTENDANCE, loading: false, live: false };
+      const mockAttendance: AttendanceRow[] = ATTENDANCE.map((row) => ({
+        ...row,
+        morningBoarded: localizeTimeString(row.morningBoarded, locale),
+        dropOffTime: localizeTimeString(row.dropOffTime, locale),
+      }));
+      return {
+        kpis: buildKpis(KPIS, [], t),
+        buses: BUSES,
+        attendance: mockAttendance,
+        loading: false,
+        live: false,
+      };
     }
     const rows: AttendanceRow[] = attendance.map((a) => ({
       id: a.id,
       name: a.studentName,
       grade: a.grade,
       bus: a.busName,
-      morningBoarded: formatTime(a.boardedAt),
-      dropOffTime: formatTime(a.droppedOffAt),
+      morningBoarded: formatTime(a.boardedAt ? a.boardedAt.toDate() : null, locale),
+      dropOffTime: formatTime(a.droppedOffAt ? a.droppedOffAt.toDate() : null, locale),
       status: a.status,
     }));
 
@@ -299,12 +319,11 @@ export function useDashboardData(): DashboardData {
     const waiting = countByStatus(attendance, "WAITING");
     const absent = countByStatus(attendance, "ABSENT");
 
-    const kpis: KPI[] = [
-      { ...KPIS[0], value: attendance.length },
-      { ...KPIS[1], value: onboard },
-      { ...KPIS[2], value: dropped },
-      { ...KPIS[3], value: absent + waiting },
-    ];
+    const kpis: KPI[] = buildKpis(
+      KPIS,
+      [attendance.length, onboard, dropped, absent + waiting],
+      t,
+    );
 
     const busList: Bus[] = buses.map((bus) => {
       const busAtt = attendance.filter((a) => a.busId === bus.id);
@@ -325,7 +344,7 @@ export function useDashboardData(): DashboardData {
     });
 
     return { kpis, buses: busList, attendance: rows, loading, live: true };
-  }, [live, attendance, buses, runs, loading]);
+  }, [live, attendance, buses, runs, loading, locale, t]);
 
   return data;
 }

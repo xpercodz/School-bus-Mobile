@@ -18,7 +18,7 @@ export function DirectorShell({ children }: { children: ReactNode }) {
     <RequireRole role="director" fallback="/">
       <div className="min-h-dvh bg-dash-background font-sans text-dash-on-surface">
         <Sidebar activeId="live-map" schoolName={schoolName} />
-        <div className="ml-64 flex min-h-dvh flex-col">
+        <div className="ms-64 flex min-h-dvh flex-col">
           <TopBar />
           <main className="flex-1">{children}</main>
         </div>

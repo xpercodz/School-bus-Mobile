@@ -2,8 +2,20 @@
 
 import type { ReactNode } from "react";
 import { AuthProvider } from "@/lib/auth";
+import { LocaleProvider } from "@/lib/i18n/context";
+import type { Locale } from "@/lib/i18n/config";
 
-/** Client providers that wrap the app (currently just auth state). */
-export function Providers({ children }: { children: ReactNode }) {
-  return <AuthProvider>{children}</AuthProvider>;
+/** Client providers that wrap the app (locale + auth state). */
+export function Providers({
+  initialLocale,
+  children,
+}: {
+  initialLocale: Locale;
+  children: ReactNode;
+}) {
+  return (
+    <LocaleProvider initialLocale={initialLocale}>
+      <AuthProvider>{children}</AuthProvider>
+    </LocaleProvider>
+  );
 }

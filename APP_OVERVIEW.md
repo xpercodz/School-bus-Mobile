@@ -15,6 +15,10 @@ repo — keep it accurate as the project evolves.
   both sections. Config in `.env.local` (`NEXT_PUBLIC_FIREBASE_*`), client SDK
   init in `src/lib/firebase.ts`. UI falls back to mock data when unconfigured
   or signed out.
+- **i18n:** lightweight custom layer in `src/lib/i18n/` — typed `en`/`ar`
+  dictionaries, a client `LocaleProvider`, and `Intl`-based formatting. English
+  default, Arabic via a UI toggle, persisted in a `locale` cookie. See
+  "Internationalization" below.
 
 ## Routing
 
@@ -96,6 +100,36 @@ schools/{schoolId}/attendance/{id}   { runId, date, busId, busName, studentName,
   and a **staff** (bus monitor) user + profiles, a demo school, 4 buses, 32
   students, and today's morning runs with attendance. Idempotent — safe to
   re-run. Env-overridable (`DIRECTOR_*`, `STAFF_*`, `SCHOOL_ID`).
+
+## Internationalization
+
+English is the default UI language; a manual toggle switches to Arabic (for
+drivers who don't read English). Lightweight custom layer — **no routing
+changes, no third-party i18n library** (this Next.js has no `middleware` and no
+`i18n` config option, so the `[lang]` routing approach was deliberately skipped).
+
+- **Locale core** (`src/lib/i18n/`): typed `en`/`ar` dictionaries
+  (`dictionaries/*.ts`, key set derived from `en.ts` as `Messages`), a client
+  `LocaleProvider` + `useLocale()` (`context.tsx`) exposing
+  `{ locale, setLocale, dir, t }`, and `Intl`-based formatting (`format.ts`:
+  `formatTime`, `toLocaleDigits`, `localizeTimeString`, `translateDataLabel`).
+- **Persistence:** the choice lives in a `locale` cookie (`path=/`). Server
+  layouts read it (`getServerLocale()`) so `<html lang/dir>` and tab metadata
+  match on first paint (no wrong-direction flash); the provider writes it on
+  toggle. No localStorage.
+- **Arabic numerals:** Arabic mode uses Eastern Arabic digits (٠١٢٣) — `Intl`
+  via `ar-EG` for times (with Arabic `ص`/`م`), `toLocaleDigits` for counts, bus
+  numbers, and grade suffixes.
+- **RTL:** `dir="rtl"` flips the layout. Components use Tailwind logical
+  utilities (`start-*`/`end-*`/`ms-*`/`ps-*`/`text-start`/`border-e`), so the
+  dashboard's fixed sidebar moves to the right and text right-aligns. Arrow-key
+  navigation in the segmented controls (tabs, run-type) is direction-aware.
+- **Fonts:** Inter (Latin) + IBM Plex Sans Arabic share one `--font-sans` stack
+  in `globals.css`; unicode-range serves Arabic glyphs from the Arabic font.
+- **Toggle:** `src/components/LanguageToggle.tsx` — shown on login (so drivers
+  can switch before signing in), the mobile top bar, and the dashboard top bar.
+- **Not translated:** proper nouns — student/driver names, bus number suffixes,
+  grade codes, and the product brands (`Fleet Ops`, `TransitFlow Monitor`).
 
 ## UI system
 

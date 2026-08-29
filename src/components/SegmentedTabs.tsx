@@ -1,6 +1,20 @@
+"use client";
+
 import { useRef, type KeyboardEvent } from "react";
 import type { StudentStatus } from "@/data/students";
 import { TABS, type TabId } from "@/data/students";
+import { useLocale } from "@/lib/i18n/context";
+import { toLocaleDigits } from "@/lib/i18n/format";
+import type { MessageKey } from "@/lib/i18n/types";
+
+/** Tab label key per TabId — DROPPED_OFF's tab reads "Done" (matches the design). */
+const TAB_LABEL_KEY: Record<TabId, MessageKey> = {
+  all: "tabs.all",
+  WAITING: "tabs.waiting",
+  BOARDED: "tabs.boarded",
+  DROPPED_OFF: "tabs.done",
+  ABSENT: "status.absent", // ABSENT has no tab; harmless fallback
+};
 
 interface SegmentedTabsProps {
   active: TabId;
@@ -9,6 +23,7 @@ interface SegmentedTabsProps {
 }
 
 export function SegmentedTabs({ active, counts, onSelect }: SegmentedTabsProps) {
+  const { t, dir, locale } = useLocale();
   const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
   const tabRefs = useRef<Record<TabId, HTMLButtonElement | null>>({
     all: null,
@@ -18,12 +33,15 @@ export function SegmentedTabs({ active, counts, onSelect }: SegmentedTabsProps) 
     ABSENT: null,
   });
 
-  // WAI-ARIA tabs pattern: roving tabindex + arrow-key navigation.
+  // WAI-ARIA tabs pattern: roving tabindex + arrow-key navigation. Arrow
+  // direction is inverted in RTL so Left always means "back" visually.
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const current = TABS.findIndex((tab) => tab.id === active);
+    const forward = dir === "rtl" ? "ArrowLeft" : "ArrowRight";
+    const backward = dir === "rtl" ? "ArrowRight" : "ArrowLeft";
     let next = -1;
-    if (event.key === "ArrowRight") next = (current + 1) % TABS.length;
-    else if (event.key === "ArrowLeft") next = (current - 1 + TABS.length) % TABS.length;
+    if (event.key === forward) next = (current + 1) % TABS.length;
+    else if (event.key === backward) next = (current - 1 + TABS.length) % TABS.length;
     else if (event.key === "Home") next = 0;
     else if (event.key === "End") next = TABS.length - 1;
     if (next === -1) return;
@@ -36,7 +54,7 @@ export function SegmentedTabs({ active, counts, onSelect }: SegmentedTabsProps) 
   return (
     <div
       role="tablist"
-      aria-label="Filter students by status"
+      aria-label={t("tabs.filterAria")}
       onKeyDown={handleKeyDown}
       className="no-scrollbar flex overflow-x-auto border-b border-outline-variant"
     >
@@ -60,7 +78,7 @@ export function SegmentedTabs({ active, counts, onSelect }: SegmentedTabsProps) 
                 : "border-transparent text-on-surface-variant"
             }`}
           >
-            {tab.label} ({count})
+            {t(TAB_LABEL_KEY[tab.id])} ({toLocaleDigits(String(count), locale)})
           </button>
         );
       })}

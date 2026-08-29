@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useUserProfile, type UserRole } from "@/lib/user-profile";
+import { useLocale } from "@/lib/i18n/context";
 
 interface RequireRoleProps {
   /** The role allowed to see this area. */
@@ -21,6 +22,7 @@ interface RequireRoleProps {
 export function RequireRole({ role, fallback, children }: RequireRoleProps) {
   const { user, status } = useAuth();
   const { profile, loading } = useUserProfile();
+  const { t } = useLocale();
   const router = useRouter();
 
   const authorized =
@@ -40,7 +42,7 @@ export function RequireRole({ role, fallback, children }: RequireRoleProps) {
   if (status === "loading" || loading) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-surface text-on-surface">
-        <p className="text-body-lg">Checking access…</p>
+        <p className="text-body-lg">{t("guard.checking")}</p>
       </div>
     );
   }

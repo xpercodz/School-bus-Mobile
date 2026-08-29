@@ -1,5 +1,9 @@
+"use client";
+
 import type { KPI } from "@/data/dashboard";
 import { Icon } from "@/components/Icon";
+import { useLocale } from "@/lib/i18n/context";
+import { toLocaleDigits } from "@/lib/i18n/format";
 
 interface MetricCardProps {
   kpi: KPI;
@@ -10,13 +14,16 @@ interface MetricCardProps {
  *
  * Faithful to code.html's Material 3 light cards. Three tones:
  * - "default": neutral surface card, optional label accent (success/error);
- * - "success": green container card with a right-hand accent bar and a live
+ * - "success": green container card with a start-hand accent bar and a live
  *   pulse dot beside the label;
- * - "error": red-outlined card with a left accent border and an error icon.
+ * - "error": red-outlined card with a start accent border and an error icon.
  *
- * Purely presentational — no hooks, no interactivity in the UI-only build.
+ * label/footer arrive already localized from useDashboardData; only the number
+ * needs locale-aware digit conversion here.
  */
 export function MetricCard({ kpi }: MetricCardProps) {
+  const { locale, dir } = useLocale();
+  const ltr = dir === "ltr";
   const baseClass = "relative flex flex-col gap-2 rounded border p-4";
 
   let cardClass: string;
@@ -30,7 +37,7 @@ export function MetricCard({ kpi }: MetricCardProps) {
     valueClass = "text-dash-on-success-container";
     footerClass = "text-dash-on-success-container";
   } else if (kpi.tone === "error") {
-    cardClass = `${baseClass} border-dash-error/30 border-l-4 border-l-dash-error bg-dash-error-container/20`;
+    cardClass = `${baseClass} border-dash-error/30 border-s-4 border-s-dash-error bg-dash-error-container/20`;
     labelClass = "text-dash-error";
     valueClass = "text-dash-error";
     footerClass = "text-dash-error";
@@ -51,10 +58,14 @@ export function MetricCard({ kpi }: MetricCardProps) {
   return (
     <div className={cardClass}>
       {isSuccess && (
-        <div className="absolute right-0 top-0 h-full w-1 bg-dash-success" aria-hidden="true" />
+        <div className="absolute end-0 top-0 h-full w-1 bg-dash-success" aria-hidden="true" />
       )}
       <div className="flex items-start justify-between gap-2">
-        <h3 className={`text-dash-label-md uppercase tracking-widest ${labelClass}`}>{kpi.label}</h3>
+        <h3
+          className={`text-dash-label-md uppercase ${ltr ? "tracking-widest" : ""} ${labelClass}`}
+        >
+          {kpi.label}
+        </h3>
         {kpi.pulse && (
           <span
             className="mt-1 h-3 w-3 rounded-full bg-dash-success pulse-dot"
@@ -62,8 +73,12 @@ export function MetricCard({ kpi }: MetricCardProps) {
           />
         )}
       </div>
-      <div className={`font-mono text-dash-metric-xl ${valueClass}`}>{kpi.value}</div>
-      <div className={`mt-auto flex items-center justify-end gap-1 text-right text-dash-body-sm ${footerClass}`}>
+      <div className={`font-mono text-dash-metric-xl ${valueClass}`}>
+        {toLocaleDigits(String(kpi.value), locale)}
+      </div>
+      <div
+        className={`mt-auto flex items-center justify-end gap-1 text-end text-dash-body-sm ${footerClass}`}
+      >
         {kpi.footerIcon && <Icon name={kpi.footerIcon} size={14} variant="outlined" />}
         <span>{kpi.footer}</span>
       </div>

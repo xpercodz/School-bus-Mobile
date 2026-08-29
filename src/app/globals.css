@@ -46,8 +46,10 @@
   --text-label-lg--font-weight: 500;
   --text-label-lg--letter-spacing: 0.1px;
 
-  /* Fonts */
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* Fonts — the Arabic family slots into the same stack so unicode-range
+     fallback serves Arabic glyphs while Inter serves Latin. */
+  --font-sans: var(--font-inter), var(--font-arabic), ui-sans-serif, system-ui,
+    sans-serif;
   --font-icon: "Material Symbols Rounded", sans-serif;
   --font-icon-outlined: "Material Symbols Outlined", sans-serif;
   /* JetBrains Mono — metrics on the dashboard. Mobile never uses font-mono.
