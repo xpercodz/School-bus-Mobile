@@ -8,9 +8,19 @@ import { useLocale } from "@/lib/i18n/context";
 interface RosterListProps {
   students: readonly Student[];
   onCycleStatus: (id: string) => void;
+  onMarkAbsent: (id: string) => void;
+  onViewHistory: (name: string) => void;
+  /** True on a completed run — roster cards become read-only. */
+  disabled?: boolean;
 }
 
-export function RosterList({ students, onCycleStatus }: RosterListProps) {
+export function RosterList({
+  students,
+  onCycleStatus,
+  onMarkAbsent,
+  onViewHistory,
+  disabled = false,
+}: RosterListProps) {
   const { t } = useLocale();
 
   if (students.length === 0) {
@@ -27,7 +37,13 @@ export function RosterList({ students, onCycleStatus }: RosterListProps) {
     <ul className="flex flex-col gap-4">
       {students.map((student) => (
         <li key={student.id}>
-          <StudentCard student={student} onCycleStatus={onCycleStatus} />
+          <StudentCard
+            student={student}
+            onCycleStatus={onCycleStatus}
+            onMarkAbsent={onMarkAbsent}
+            onViewHistory={onViewHistory}
+            disabled={disabled}
+          />
         </li>
       ))}
     </ul>

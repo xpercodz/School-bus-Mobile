@@ -13,8 +13,9 @@ repo — keep it accurate as the project evolves.
   Rounded + Outlined (Google Fonts CDN)
 - **Backend:** **Firebase** — Auth (email/password) + Cloud Firestore, shared by
   both sections. Config in `.env.local` (`NEXT_PUBLIC_FIREBASE_*`), client SDK
-  init in `src/lib/firebase.ts`. UI falls back to mock data when unconfigured
-  or signed out.
+  init in `src/lib/firebase.ts`. **Live data only** — there is no mock fallback:
+  without a session the mobile screen shows a sign-in prompt, and the dashboard
+  is role-guarded.
 - **i18n:** lightweight custom layer in `src/lib/i18n/` — typed `en`/`ar`
   dictionaries, a client `LocaleProvider`, and `Intl`-based formatting. English
   default, Arabic via a UI toggle, persisted in a `locale` cookie. See
@@ -23,9 +24,11 @@ repo — keep it accurate as the project evolves.
 ## Routing
 
 ```
-/            (mobile) group  — phone-column roster (Bus #04 • Morning Run)
-/dashboard   dashboard/      — director "School Transit Live Monitor"
-/login       login/          — email/password sign-in
+/                      (mobile) group  — phone-column roster (Bus #04 • Morning Run)
+/dashboard             dashboard/      — director "School Transit Live Monitor"
+/dashboard/analytics   dashboard/      — attendance statistics + multi-day trend
+/dashboard/reports     dashboard/      — printable attendance summary (CSV + print)
+/login                 login/          — email/password sign-in
 ```
 
 **Role-based access:** after login, `staff` (bus monitor/driver) lands on `/`,
@@ -42,17 +45,29 @@ signed-in school's name (`src/lib/school.ts`), so each tenant sees their own.
 - One root layout (`src/app/layout.tsx`) provides fonts + icon CDN for both.
 - Dashboard is **desktop-only by design** (fixed `w-64` sidebar); not responsive
   below tablet. Known limitation, matches the design.
-- Sidebar nav sections (Fleet Status, Routes, Analytics, Reports) are inert
-  links in the UI-only build — future routes under `dashboard/` share the shell.
+- Sidebar nav: **Live Map** (`/dashboard`), **Analytics** (`/dashboard/analytics`),
+  and **Reports** (`/dashboard/reports`) are real routes; the active pill follows
+  the path. **Fleet Status** is intentionally inert (the fleet grid already lives
+  on the Live Map) and **Routes** isn't built yet.
+- **Analytics** — KPI cards, per-bus boarded/absent rate bars, per-grade
+  breakdown, and a multi-day attendance trend (`useAttendanceTrend`: paginated
+  date-range query on `attendance.date`, CSS stacked-bar chart, default last 7
+  days, capped at 31).
+- **Reports** — overview KPIs, by-bus and by-grade summary tables, the full
+  roster, **Export CSV** (reuses `src/lib/csv.ts`), and **Print** (the sidebar +
+  top bar are hidden on print via `print:` variants).
 
 ## Mobile screen (Bus #04 • Morning Run)
 
 Faithful to the Stitch design: attendance roster with status summary chips,
 student search, segmented filter tabs (All / Waiting / Boarded / Done), roster
-cards per status, and a bottom bar. When signed in, the roster reads the
+cards per status, and a bottom bar. The roster is **live-only** — it reads the
 school's current run from Firestore and tapping a student's status pill writes
-the new status back; signed out, it runs on the mock roster (local cycling).
-See the git history for the original one-screen build.
+the new status back; signed out, the screen shows a sign-in prompt. The bottom
+bar's **Complete Run** marks the run `COMPLETED` and any `WAITING` students
+`ABSENT` in one atomic batch. Each card's "⋯" menu offers **View history** and
+**Mark absent**; the top-bar "⋯" menu shows run details (bus / type / date /
+status) and **Sign out**. See the git history for the original one-screen build.
 
 ## Director dashboard (School Transit Live Monitor)
 
@@ -64,9 +79,17 @@ the rendered design). One screen: the Live Monitor.
   Dropped Off / Marked Absent-Pending (error accent).
 - **Active Fleet grid** — bus cards (route progress, In/Out/Wait counts).
 - **Live Student Attendance table** — student name, grade, bus #, morning
-  boarded, drop-off time, status badge, call/history actions.
-- **Filter bar** — date chip (inert), Morning Pickup / Afternoon Drop-off
-  segment control, student search (filters the table live), Export (inert).
+  boarded, drop-off time, status badge, actions. The **History** action opens a
+  per-student attendance sheet; **Call** is disabled (no contact numbers on file).
+- **Filter bar** — date picker (re-queries the dashboard for a chosen day),
+  Morning Pickup / Afternoon Drop-off segment control (filters the table, KPIs,
+  and fleet), student search (filters the table live), **Export CSV** (downloads
+  the current filtered rows).
+- **Dispatch Vehicle** (sidebar) — creates a run for a chosen bus/type/date and
+  pre-registers that bus's students as `WAITING`; refuses to clobber an existing
+  run.
+- **Top bar** — Help dialog, Settings drawer (account, language, sign out).
+  Notifications stays inert.
 
 ## Data model
 
@@ -88,14 +111,24 @@ schools/{schoolId}/attendance/{id}   { runId, date, busId, busName, studentName,
   run+student) so both views are single-query realtime reads:
   mobile reads `where runId == X`, dashboard reads `where date == today`.
 - Run ids are deterministic: `${busId}-${yyyy-mm-dd}-${runType}`.
+- The per-student history query (`attendance` where `studentName` + order by
+  `date`, `runId`) needs the composite index declared in `firestore.indexes.json`
+  (deploy with `firebase deploy --only firestore:indexes`).
 
 ### App data access
 
-- `src/data/students.ts` + `src/data/dashboard.ts` — typed **mock** fallbacks
-  (used when Firebase is unconfigured or the user is signed out).
-- `src/lib/school-data.ts` — `useRunRoster()` (mobile roster + status writes)
-  and `useDashboardData()` (KPIs / fleet / attendance). Both `onSnapshot`
-  Firestore and fall back to the mocks when not live.
+- `src/data/students.ts` + `src/data/dashboard.ts` — types + presentation
+  config only (statuses, tabs, KPI ids, nav, run segments). No data lives here.
+- `src/lib/school-data.ts` — `useRunRoster()` (mobile roster + status writes +
+  `completeRun` / `markAbsent`), `useDashboardData(date, segment)` (KPIs / fleet
+  / attendance, filtered by run segment and re-queried by date),
+  `useStudentHistory()` (paginated per-student history), and
+  `useAttendanceTrend(start, end, segment)` (paginated date-range daily totals)
+  with `summarizeByBus` / `summarizeByGrade` helpers. All `onSnapshot` /
+  paginated Firestore — nothing renders without a live session.
+- `src/lib/csv.ts` — attendance CSV export (`buildAttendanceCsv` / `downloadCsv`).
+- `scripts/clear-data.mjs` — wipes the seeded demo data (schools subtree; pass
+  `--users` to also remove the demo accounts).
 - `scripts/seed.mjs` — one-time bootstrap (Admin SDK): creates a **director**
   and a **staff** (bus monitor) user + profiles, a demo school, 4 buses, 32
   students, and today's morning runs with attendance. Idempotent — safe to
@@ -149,6 +182,12 @@ Material 3 light for both sections. Tokens live in the `@theme` block of
 - **Icons:** `src/components/Icon.tsx` takes a `variant` prop —
   `"rounded"` (filled, mobile) or `"outlined"` (line, dashboard). Both font
   families are loaded from the CDN.
+- **Skeletons:** shared loading placeholders — base `Skeleton` /
+  `SkeletonText` / `SkeletonCircle` in `src/components/Skeleton.tsx`, composed
+  into screen shapes in `src/components/dashboard/DashboardSkeletons.tsx`
+  (KPI grid, fleet grid, tables, trend) and `src/components/RosterSkeleton.tsx`
+  (roster + history list). Each skeleton mirrors the exact layout of the content
+  it replaces; screens swap it in while live data loads (`role="status"`).
 
 ## Layout
 

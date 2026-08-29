@@ -1,24 +1,40 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
   doc,
   getDoc,
+  getDocs,
+  limit,
   onSnapshot,
+  orderBy,
   query,
+  serverTimestamp,
   setDoc,
+  startAfter,
   where,
+  writeBatch,
+  type DocumentSnapshot,
+  type FieldValue,
+  type Query,
+  type QuerySnapshot,
   type Timestamp,
 } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import type { Student, StudentStatus } from "@/data/students";
-import { STATUS_CYCLE, STUDENTS } from "@/data/students";
-import type { Bus, KPI, KPIBase } from "@/data/dashboard";
-import { ATTENDANCE, BUSES, KPIS, type AttendanceRow } from "@/data/dashboard";
+import { STATUS_CYCLE } from "@/data/students";
+import {
+  KPIS,
+  type AttendanceRow,
+  type Bus,
+  type KPI,
+  type KPIBase,
+  type RunSegmentId,
+} from "@/data/dashboard";
 import { useLocale } from "@/lib/i18n/context";
-import { formatTime, localizeTimeString } from "@/lib/i18n/format";
+import { formatTime } from "@/lib/i18n/format";
 import type { MessageKey, TFunction } from "@/lib/i18n/types";
 
 /** The mobile roster always shows Bus #04's morning run (matches the design). */
@@ -27,16 +43,31 @@ export const ROSTER_RUN_TYPE = "morning";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function todayDateStr(): string {
+/** Local "YYYY-MM-DD" — the app's date key (document `date` field, run ids). */
+export function todayDateStr(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/** Deterministic run id: `${busId}-${YYYY-MM-DD}-${runType}`. */
+export function buildRunId(busId: string, dateStr: string, runType: string): string {
+  return `${busId}-${dateStr}-${runType}`;
+}
+
+/**
+ * Run type from a run id — the last `-` token. Dates contain `-`; run types
+ * ("morning" / "afternoon") never do.
+ */
+export function runTypeFromRunId(runId: string): "morning" | "afternoon" {
+  return runId.split("-").at(-1) === "afternoon" ? "afternoon" : "morning";
+}
+
 /** Cached users/{uid} → schoolId lookup. */
 const schoolIdCache = new Map<string, string>();
 
-async function fetchSchoolId(uid: string): Promise<string | null> {
+/** Resolve the caller's tenant id from their profile doc (cached). */
+export async function fetchSchoolId(uid: string): Promise<string | null> {
   const cached = schoolIdCache.get(uid);
   if (cached) return cached;
   if (!db) return null;
@@ -104,8 +135,20 @@ export interface RunRoster {
   roster: readonly Student[];
   loading: boolean;
   live: boolean;
-  /** Advance a student's status. Writes to Firestore when live, else local demo cycle. */
+  /** Advance a student's status — writes the new status to Firestore. */
   cycleStatus: (id: string) => void;
+  /** True when the current run is marked COMPLETED. */
+  completed: boolean;
+  /** Live run status for the run-details sheet. */
+  runStatus: "IN_PROGRESS" | "COMPLETED";
+  /** Whether a run doc exists for this bus/date/type. */
+  runExists: boolean;
+  /** Static identity of the run the roster shows (for the run-details sheet). */
+  runMeta: { busId: string; runType: string; date: string };
+  /** Complete the run: mark it COMPLETED and any WAITING students ABSENT. */
+  completeRun: () => Promise<void>;
+  /** Set a student's status to ABSENT directly (kebab-menu shortcut). */
+  markAbsent: (id: string) => void;
 }
 
 export function useRunRoster(): RunRoster {
@@ -113,107 +156,10 @@ export function useRunRoster(): RunRoster {
   const { user } = useAuth();
   const uid = user?.uid;
 
-  const [roster, setRoster] = useState<readonly Student[]>(STUDENTS);
-  const [mockRoster, setMockRoster] = useState<readonly Student[]>(STUDENTS);
+  const [roster, setRoster] = useState<readonly Student[]>([]);
+  const [runStatus, setRunStatus] = useState<RunDoc["status"]>("IN_PROGRESS");
+  const [runExists, setRunExists] = useState(false);
   // loading = live && we haven't received the first snapshot for this user yet.
-  const [loadedUid, setLoadedUid] = useState<string | null>(null);
-  const loading = live && loadedUid !== uid;
-
-  useEffect(() => {
-    if (!live || !uid || !db) return;
-    const firestore = db;
-    let cancelled = false;
-    let unsubscribe: (() => void) | undefined;
-
-    void fetchSchoolId(uid).then((schoolId) => {
-      if (cancelled) return;
-      if (!schoolId) {
-        setLoadedUid(uid);
-        return;
-      }
-      const runId = `${ROSTER_BUS_ID}-${todayDateStr()}-${ROSTER_RUN_TYPE}`;
-      const attQuery = query(
-        collection(firestore, "schools", schoolId, "attendance"),
-        where("runId", "==", runId),
-      );
-      unsubscribe = onSnapshot(
-        attQuery,
-        (snap) => {
-          const list: Student[] = snap.docs
-            .map((d) => {
-              const data = d.data();
-              return {
-                id: d.id,
-                name: (data.studentName as string) ?? "",
-                grade: (data.grade as string) ?? "",
-                status: (data.status as StudentStatus) ?? "WAITING",
-              };
-            })
-            .sort((a, b) => a.name.localeCompare(b.name));
-          setRoster(list);
-          setLoadedUid(uid);
-        },
-        () => setLoadedUid(uid),
-      );
-    });
-
-    return () => {
-      cancelled = true;
-      unsubscribe?.();
-    };
-  }, [live, uid]);
-
-  function cycleStatus(id: string) {
-    if (live && uid && db) {
-      const firestore = db;
-      const current = roster.find((s) => s.id === id);
-      if (!current) return;
-      const next =
-        STATUS_CYCLE[(STATUS_CYCLE.indexOf(current.status) + 1) % STATUS_CYCLE.length];
-      void fetchSchoolId(uid).then((schoolId) => {
-        if (!schoolId) return;
-        const runId = `${ROSTER_BUS_ID}-${todayDateStr()}-${ROSTER_RUN_TYPE}`;
-        void setDoc(
-          doc(firestore, "schools", schoolId, "attendance", `${runId}__${id}`),
-          { status: next },
-          { merge: true },
-        );
-      });
-      return;
-    }
-    // Mock/demo mode: cycle the local list.
-    setMockRoster((prev) =>
-      prev.map((s) => {
-        if (s.id !== id) return s;
-        const next =
-          STATUS_CYCLE[(STATUS_CYCLE.indexOf(s.status) + 1) % STATUS_CYCLE.length];
-        return { ...s, status: next };
-      }),
-    );
-  }
-
-  return { roster: live ? roster : mockRoster, loading, live, cycleStatus };
-}
-
-// ── director dashboard ───────────────────────────────────────────────────────
-
-export interface DashboardData {
-  kpis: readonly KPI[];
-  buses: readonly Bus[];
-  attendance: readonly AttendanceRow[];
-  loading: boolean;
-  live: boolean;
-}
-
-export function useDashboardData(): DashboardData {
-  const live = useLiveFlag();
-  const { user } = useAuth();
-  const uid = user?.uid;
-  const { locale, t } = useLocale();
-
-  const [attendance, setAttendance] = useState<AttendanceDoc[]>([]);
-  const [buses, setBuses] = useState<BusDoc[]>([]);
-  const [runs, setRuns] = useState<RunDoc[]>([]);
   const [loadedUid, setLoadedUid] = useState<string | null>(null);
   const loading = live && loadedUid !== uid;
 
@@ -229,7 +175,189 @@ export function useDashboardData(): DashboardData {
         setLoadedUid(uid);
         return;
       }
-      const dateStr = todayDateStr();
+      const runId = buildRunId(ROSTER_BUS_ID, todayDateStr(), ROSTER_RUN_TYPE);
+      const attQuery = query(
+        collection(firestore, "schools", schoolId, "attendance"),
+        where("runId", "==", runId),
+      );
+      unsubscribers.push(
+        onSnapshot(
+          attQuery,
+          (snap) => {
+            const list: Student[] = snap.docs
+              .map((d) => {
+                const data = d.data();
+                // Doc id is `${runId}__${studentId}` — keep only the student id so
+                // writes (cycleStatus/markAbsent/completeRun) land on the right doc.
+                return {
+                  id: d.id.split("__").at(-1) ?? d.id,
+                  name: (data.studentName as string) ?? "",
+                  grade: (data.grade as string) ?? "",
+                  status: (data.status as StudentStatus) ?? "WAITING",
+                };
+              })
+              .sort((a, b) => a.name.localeCompare(b.name));
+            setRoster(list);
+            setLoadedUid(uid);
+          },
+          () => setLoadedUid(uid),
+        ),
+      );
+      unsubscribers.push(
+        onSnapshot(doc(firestore, "schools", schoolId, "runs", runId), (snap) => {
+          setRunExists(snap.exists());
+          setRunStatus((snap.data()?.status as RunDoc["status"]) ?? "IN_PROGRESS");
+        }),
+      );
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribers.forEach((u) => u());
+    };
+  }, [live, uid]);
+
+  function cycleStatus(id: string) {
+    // Completed runs are locked — no status changes after sign-off.
+    if (!live || !uid || !db || runStatus === "COMPLETED") return;
+    const firestore = db;
+    const current = roster.find((s) => s.id === id);
+    if (!current) return;
+    const next =
+      STATUS_CYCLE[(STATUS_CYCLE.indexOf(current.status) + 1) % STATUS_CYCLE.length];
+    void fetchSchoolId(uid).then((schoolId) => {
+      if (!schoolId) return;
+      const runId = buildRunId(ROSTER_BUS_ID, todayDateStr(), ROSTER_RUN_TYPE);
+      // Record boarding/drop-off timestamps so the dashboard columns populate.
+      const patch: { status: StudentStatus; boardedAt?: FieldValue; droppedOffAt?: FieldValue } = {
+        status: next,
+      };
+      if (next === "BOARDED") patch.boardedAt = serverTimestamp();
+      else if (next === "DROPPED_OFF") patch.droppedOffAt = serverTimestamp();
+      void setDoc(
+        doc(firestore, "schools", schoolId, "attendance", `${runId}__${id}`),
+        patch,
+        { merge: true },
+      );
+    });
+  }
+
+  async function completeRun(): Promise<void> {
+    if (!live || !uid || !db) return;
+    const firestore = db;
+    const schoolId = await fetchSchoolId(uid);
+    if (!schoolId) return;
+    const runId = buildRunId(ROSTER_BUS_ID, todayDateStr(), ROSTER_RUN_TYPE);
+    // Atomic: complete the run and mark waiting students absent together. Write
+    // the full run fields so a missing run doc (fresh day) isn't created partial.
+    const batch = writeBatch(firestore);
+    batch.set(
+      doc(firestore, "schools", schoolId, "runs", runId),
+      {
+        busId: ROSTER_BUS_ID,
+        runType: ROSTER_RUN_TYPE,
+        date: todayDateStr(),
+        status: "COMPLETED",
+      },
+      { merge: true },
+    );
+    for (const student of roster) {
+      if (student.status === "WAITING") {
+        batch.set(
+          doc(firestore, "schools", schoolId, "attendance", `${runId}__${student.id}`),
+          { status: "ABSENT" },
+          { merge: true },
+        );
+      }
+    }
+    await batch.commit();
+  }
+
+  function markAbsent(id: string) {
+    if (!live || !uid || !db || runStatus === "COMPLETED") return;
+    const firestore = db;
+    void fetchSchoolId(uid).then((schoolId) => {
+      if (!schoolId) return;
+      const runId = buildRunId(ROSTER_BUS_ID, todayDateStr(), ROSTER_RUN_TYPE);
+      void setDoc(
+        doc(firestore, "schools", schoolId, "attendance", `${runId}__${id}`),
+        { status: "ABSENT" },
+        { merge: true },
+      );
+    });
+  }
+
+  return {
+    roster,
+    loading,
+    live,
+    cycleStatus,
+    completed: runStatus === "COMPLETED",
+    runStatus,
+    runExists,
+    runMeta: {
+      busId: ROSTER_BUS_ID,
+      runType: ROSTER_RUN_TYPE,
+      date: todayDateStr(),
+    },
+    completeRun,
+    markAbsent,
+  };
+}
+
+// ── director dashboard ───────────────────────────────────────────────────────
+
+export interface DashboardData {
+  kpis: readonly KPI[];
+  buses: readonly Bus[];
+  attendance: readonly AttendanceRow[];
+  loading: boolean;
+  live: boolean;
+}
+
+/**
+ * Live director dashboard data for one date and run segment. Queries re-subscribe
+ * when the date changes; toggling the segment only re-derives in the memo (no
+ * listener churn).
+ */
+export function useDashboardData(
+  dateStr?: string | null,
+  segment: RunSegmentId = "morning",
+): DashboardData {
+  const live = useLiveFlag();
+  const { user } = useAuth();
+  const uid = user?.uid;
+  const { locale, t } = useLocale();
+  const effectiveDate = dateStr ?? todayDateStr();
+
+  const [attendance, setAttendance] = useState<AttendanceDoc[]>([]);
+  const [buses, setBuses] = useState<BusDoc[]>([]);
+  const [runs, setRuns] = useState<RunDoc[]>([]);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const loading = live && loadedKey !== `${uid}|${effectiveDate}`;
+
+  useEffect(() => {
+    if (!live || !uid || !db) return;
+    const firestore = db;
+    let cancelled = false;
+    const unsubscribers: (() => void)[] = [];
+    // Clear prior-date data on a date change so stale rows never linger while
+    // the new date loads (or forever if the new query errors). Deferred to a
+    // microtask to keep setState out of the synchronous effect body.
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setAttendance([]);
+      setBuses([]);
+      setRuns([]);
+    });
+
+    void fetchSchoolId(uid).then((schoolId) => {
+      if (cancelled) return;
+      if (!schoolId) {
+        setLoadedKey(`${uid}|${effectiveDate}`);
+        return;
+      }
+      const dateStr = effectiveDate;
       const base = `schools/${schoolId}`;
 
       const unsubBuses = onSnapshot(collection(firestore, base, "buses"), (snap) => {
@@ -276,9 +404,9 @@ export function useDashboardData(): DashboardData {
               };
             }),
           );
-          setLoadedUid(uid);
+          setLoadedKey(`${uid}|${effectiveDate}`);
         },
-        () => setLoadedUid(uid),
+        () => setLoadedKey(`${uid}|${effectiveDate}`),
       );
       unsubscribers.push(unsubAtt);
     });
@@ -287,19 +415,15 @@ export function useDashboardData(): DashboardData {
       cancelled = true;
       unsubscribers.forEach((u) => u());
     };
-  }, [live, uid]);
+  }, [live, uid, effectiveDate]);
 
   const data = useMemo<DashboardData>(() => {
     if (!live) {
-      const mockAttendance: AttendanceRow[] = ATTENDANCE.map((row) => ({
-        ...row,
-        morningBoarded: localizeTimeString(row.morningBoarded, locale),
-        dropOffTime: localizeTimeString(row.dropOffTime, locale),
-      }));
+      // No mock fallback — the dashboard renders only live Firestore data.
       return {
-        kpis: buildKpis(KPIS, [], t),
-        buses: BUSES,
-        attendance: mockAttendance,
+        kpis: [],
+        buses: [],
+        attendance: [],
         loading: false,
         live: false,
       };
@@ -309,42 +433,433 @@ export function useDashboardData(): DashboardData {
       name: a.studentName,
       grade: a.grade,
       bus: a.busName,
+      runType: runTypeFromRunId(a.runId),
       morningBoarded: formatTime(a.boardedAt ? a.boardedAt.toDate() : null, locale),
       dropOffTime: formatTime(a.droppedOffAt ? a.droppedOffAt.toDate() : null, locale),
       status: a.status,
     }));
 
-    const onboard = countByStatus(attendance, "BOARDED");
-    const dropped = countByStatus(attendance, "DROPPED_OFF");
-    const waiting = countByStatus(attendance, "WAITING");
-    const absent = countByStatus(attendance, "ABSENT");
+    // KPIs + fleet respond to the selected run segment (table keeps both so the
+    // page applies one uniform segment+search filter).
+    const segAtt = attendance.filter((a) => runTypeFromRunId(a.runId) === segment);
+
+    const onboard = countByStatus(segAtt, "BOARDED");
+    const dropped = countByStatus(segAtt, "DROPPED_OFF");
+    const waiting = countByStatus(segAtt, "WAITING");
+    const absent = countByStatus(segAtt, "ABSENT");
 
     const kpis: KPI[] = buildKpis(
       KPIS,
-      [attendance.length, onboard, dropped, absent + waiting],
+      [segAtt.length, onboard, dropped, absent + waiting],
       t,
     );
 
-    const busList: Bus[] = buses.map((bus) => {
-      const busAtt = attendance.filter((a) => a.busId === bus.id);
-      const run = runs.find((r) => r.busId === bus.id);
-      const total = busAtt.length;
-      const onboardCount = countByStatus(busAtt, "BOARDED");
-      const droppedCount = countByStatus(busAtt, "DROPPED_OFF");
-      return {
-        id: bus.id,
-        name: bus.name,
-        driver: bus.driver,
-        status: run?.status ?? "IN_PROGRESS",
-        progress: total === 0 ? 0 : Math.round(((onboardCount + droppedCount) / total) * 100),
-        onboard: onboardCount,
-        droppedOff: droppedCount,
-        waiting: countByStatus(busAtt, "WAITING"),
-      };
-    });
+    // Only fleet buses with a run of the selected segment are "active" — a bus
+    // with no run shouldn't claim IN_PROGRESS with 0% stats.
+    const busList: Bus[] = buses
+      .filter((bus) =>
+        runs.some((r) => r.busId === bus.id && runTypeFromRunId(r.id) === segment),
+      )
+      .map((bus) => {
+        const busAtt = segAtt.filter((a) => a.busId === bus.id);
+        const run = runs.find(
+          (r) => r.busId === bus.id && runTypeFromRunId(r.id) === segment,
+        );
+        const total = busAtt.length;
+        const onboardCount = countByStatus(busAtt, "BOARDED");
+        const droppedCount = countByStatus(busAtt, "DROPPED_OFF");
+        return {
+          id: bus.id,
+          name: bus.name,
+          driver: bus.driver,
+          status: run?.status ?? "IN_PROGRESS",
+          progress: total === 0 ? 0 : Math.round(((onboardCount + droppedCount) / total) * 100),
+          onboard: onboardCount,
+          droppedOff: droppedCount,
+          waiting: countByStatus(busAtt, "WAITING"),
+        };
+      });
 
     return { kpis, buses: busList, attendance: rows, loading, live: true };
-  }, [live, attendance, buses, runs, loading, locale, t]);
+  }, [live, attendance, buses, runs, loading, locale, t, segment]);
 
   return data;
+}
+
+// ── student attendance history ───────────────────────────────────────────────
+
+export interface HistoryEntry {
+  id: string;
+  date: string;
+  runType: "morning" | "afternoon";
+  busName: string;
+  status: StudentStatus;
+}
+
+export interface StudentHistory {
+  entries: readonly HistoryEntry[];
+  loading: boolean;
+  live: boolean;
+  hasMore: boolean;
+  loadMore: () => void;
+}
+
+const HISTORY_PAGE_SIZE = 20;
+
+function toHistoryEntry(d: DocumentSnapshot): HistoryEntry {
+  const data = d.data() ?? {};
+  return {
+    id: d.id,
+    date: (data.date as string) ?? "",
+    runType: runTypeFromRunId((data.runId as string) ?? ""),
+    busName: (data.busName as string) ?? "",
+    status: (data.status as StudentStatus) ?? "WAITING",
+  };
+}
+
+/**
+ * Paged attendance history for one student (shared by the dashboard row action
+ * and the mobile kebab sheet). Live: one-shot Firestore query, cursor-paginated
+ * via startAfter(documentSnapshot); mock: a small demo list. Only queries while
+ * `enabled` (the sheet is open).
+ */
+export function useStudentHistory(
+  studentName: string | null,
+  enabled: boolean,
+): StudentHistory {
+  const live = useLiveFlag();
+  const { user } = useAuth();
+  const uid = user?.uid;
+
+  const [entries, setEntries] = useState<HistoryEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
+  // Latest student the sheet is showing — lets an in-flight loadMore drop its
+  // page if the student changed underneath it.
+  const currentStudentRef = useRef(studentName);
+  useEffect(() => {
+    currentStudentRef.current = studentName;
+  }, [studentName]);
+
+  useEffect(() => {
+    if (!enabled || !studentName) return;
+    let cancelled = false;
+
+    // Defer the initial state reset out of the effect body (the sheet is hidden
+    // when closed; on reopen/student change we clear before the new query lands).
+    if (!live || !uid || !db) {
+      // No mock fallback — clear any stale entries so the sheet shows its empty
+      // state until real data arrives.
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setEntries([]);
+        setHasMore(false);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const firestore = db;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setEntries([]);
+      setLoading(true);
+      setLastVisible(null);
+    });
+    void fetchSchoolId(uid).then(async (schoolId) => {
+      if (cancelled || !schoolId) return;
+      try {
+        const snap = await getDocs(
+          query(
+            collection(firestore, "schools", schoolId, "attendance"),
+            where("studentName", "==", studentName),
+            orderBy("date", "desc"),
+            orderBy("runId", "desc"),
+            limit(HISTORY_PAGE_SIZE),
+          ),
+        );
+        if (cancelled) return;
+        setEntries(snap.docs.map(toHistoryEntry));
+        setHasMore(snap.docs.length === HISTORY_PAGE_SIZE);
+        setLastVisible(
+          snap.docs.length === HISTORY_PAGE_SIZE
+            ? snap.docs[snap.docs.length - 1]
+            : null,
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, studentName, live, uid]);
+
+  function loadMore() {
+    if (!live || !uid || !db || !lastVisible || loading || !studentName) return;
+    const firestore = db;
+    setLoading(true);
+    void fetchSchoolId(uid).then(async (schoolId) => {
+      if (!schoolId) return;
+      try {
+        const snap = await getDocs(
+          query(
+            collection(firestore, "schools", schoolId, "attendance"),
+            where("studentName", "==", studentName),
+            orderBy("date", "desc"),
+            orderBy("runId", "desc"),
+            startAfter(lastVisible),
+            limit(HISTORY_PAGE_SIZE),
+          ),
+        );
+        setEntries((prev) => {
+          // The student switched while this page was in flight — drop it.
+          if (currentStudentRef.current !== studentName) return prev;
+          return [...prev, ...snap.docs.map(toHistoryEntry)];
+        });
+        setHasMore(snap.docs.length === HISTORY_PAGE_SIZE);
+        setLastVisible(
+          snap.docs.length === HISTORY_PAGE_SIZE
+            ? snap.docs[snap.docs.length - 1]
+            : null,
+        );
+      } finally {
+        setLoading(false);
+      }
+    });
+  }
+
+  return { entries, loading, live, hasMore, loadMore };
+}
+
+// ── attendance trend ─────────────────────────────────────────────────────────
+
+export interface TrendDay {
+  date: string; // "YYYY-MM-DD"
+  boarded: number;
+  droppedOff: number;
+  absent: number;
+  waiting: number;
+}
+
+export interface AttendanceTrend {
+  days: readonly TrendDay[];
+  loading: boolean;
+  live: boolean;
+}
+
+const TREND_DEFAULT_DAYS = 7;
+const TREND_PAGE_SIZE = 500;
+const TREND_MAX_DOCS = 10_000;
+
+/** YYYY-MM-DD for N days ago (trend default range). */
+export function daysAgoDateStr(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** YYYY-MM-DD `offset` days from `dateStr` (for the contiguous trend axis). */
+function addDays(dateStr: string, offset: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + offset);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+interface TrendRow {
+  date: string;
+  runType: "morning" | "afternoon";
+  status: StudentStatus;
+}
+
+/**
+ * Daily attendance totals across a date range, for one run segment (or both
+ * when `segment` is omitted). Live: one internally-paginated range query on the
+ * `date` field (single-field range — no composite index), aggregated per day
+ * with zero days filled so the chart axis is contiguous. Not-live returns empty.
+ */
+export function useAttendanceTrend(
+  startDate?: string | null,
+  endDate?: string | null,
+  segment?: RunSegmentId,
+): AttendanceTrend {
+  const live = useLiveFlag();
+  const { user } = useAuth();
+  const uid = user?.uid;
+
+  const effectiveEnd = endDate ?? todayDateStr();
+  const effectiveStart = startDate ?? daysAgoDateStr(TREND_DEFAULT_DAYS - 1);
+
+  const [rows, setRows] = useState<TrendRow[]>([]);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const loading = live && loadedKey !== `${uid}|${effectiveStart}|${effectiveEnd}`;
+
+  useEffect(() => {
+    if (!live || !uid || !db) return;
+    const firestore = db;
+    let cancelled = false;
+    // Clear the prior range on change (deferred out of the effect body).
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setRows([]);
+    });
+
+    void fetchSchoolId(uid).then(async (schoolId) => {
+      if (cancelled || !schoolId) return;
+      const base = collection(firestore, "schools", schoolId, "attendance");
+      const collected: TrendRow[] = [];
+      let lastDoc: DocumentSnapshot | null = null;
+      try {
+        for (;;) {
+          const q: Query = lastDoc
+            ? query(
+                base,
+                where("date", ">=", effectiveStart),
+                where("date", "<=", effectiveEnd),
+                orderBy("date", "asc"),
+                startAfter(lastDoc),
+                limit(TREND_PAGE_SIZE),
+              )
+            : query(
+                base,
+                where("date", ">=", effectiveStart),
+                where("date", "<=", effectiveEnd),
+                orderBy("date", "asc"),
+                limit(TREND_PAGE_SIZE),
+              );
+          const snap: QuerySnapshot = await getDocs(q);
+          for (const d of snap.docs) {
+            const data = d.data();
+            collected.push({
+              date: (data.date as string) ?? "",
+              runType: runTypeFromRunId((data.runId as string) ?? ""),
+              status: (data.status as StudentStatus) ?? "WAITING",
+            });
+          }
+          if (cancelled) return;
+          if (snap.docs.length < TREND_PAGE_SIZE || collected.length >= TREND_MAX_DOCS) break;
+          lastDoc = snap.docs[snap.docs.length - 1];
+        }
+        if (cancelled) return;
+        setRows(collected);
+      } finally {
+        if (!cancelled) setLoadedKey(`${uid}|${effectiveStart}|${effectiveEnd}`);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [live, uid, effectiveStart, effectiveEnd]);
+
+  const days = useMemo<TrendDay[]>(() => {
+    if (!live) return [];
+    const tally = new Map<string, TrendDay>();
+    for (const row of rows) {
+      if (!row.date) continue;
+      if (segment && row.runType !== segment) continue;
+      let day = tally.get(row.date);
+      if (!day) {
+        day = { date: row.date, boarded: 0, droppedOff: 0, absent: 0, waiting: 0 };
+        tally.set(row.date, day);
+      }
+      if (row.status === "BOARDED") day.boarded++;
+      else if (row.status === "DROPPED_OFF") day.droppedOff++;
+      else if (row.status === "ABSENT") day.absent++;
+      else day.waiting++;
+    }
+    // Fill zero days so the axis is contiguous and ascending.
+    const list: TrendDay[] = [];
+    let cursor = effectiveStart;
+    let guard = 0;
+    while (cursor <= effectiveEnd && guard <= 366) {
+      list.push(tally.get(cursor) ?? { date: cursor, boarded: 0, droppedOff: 0, absent: 0, waiting: 0 });
+      cursor = addDays(cursor, 1);
+      guard++;
+    }
+    return list;
+  }, [live, rows, segment, effectiveStart, effectiveEnd]);
+
+  return { days, loading, live };
+}
+
+// ── attendance summaries (Analytics / Reports) ───────────────────────────────
+
+export interface BusSummary {
+  bus: string;
+  assigned: number;
+  boarded: number;
+  droppedOff: number;
+  absent: number;
+  waiting: number;
+}
+
+export interface GradeSummary {
+  grade: string;
+  assigned: number;
+  boarded: number;
+  droppedOff: number;
+  absent: number;
+  waiting: number;
+}
+
+interface Summary {
+  key: string;
+  assigned: number;
+  boarded: number;
+  droppedOff: number;
+  absent: number;
+  waiting: number;
+}
+
+/** Group attendance rows by an arbitrary key, sorted by that key. */
+function summarize(
+  rows: readonly AttendanceRow[],
+  keyOf: (row: AttendanceRow) => string,
+): Summary[] {
+  const map = new Map<string, Summary>();
+  for (const row of rows) {
+    const key = keyOf(row) || "—";
+    let summary = map.get(key);
+    if (!summary) {
+      summary = { key, assigned: 0, boarded: 0, droppedOff: 0, absent: 0, waiting: 0 };
+      map.set(key, summary);
+    }
+    summary.assigned++;
+    if (row.status === "BOARDED") summary.boarded++;
+    else if (row.status === "DROPPED_OFF") summary.droppedOff++;
+    else if (row.status === "ABSENT") summary.absent++;
+    else summary.waiting++;
+  }
+  return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/** Group attendance rows by bus (sorted by bus name). */
+export function summarizeByBus(rows: readonly AttendanceRow[]): BusSummary[] {
+  return summarize(rows, (row) => row.bus).map((s) => ({
+    bus: s.key,
+    assigned: s.assigned,
+    boarded: s.boarded,
+    droppedOff: s.droppedOff,
+    absent: s.absent,
+    waiting: s.waiting,
+  }));
+}
+
+/** Group attendance rows by grade (sorted by grade). */
+export function summarizeByGrade(rows: readonly AttendanceRow[]): GradeSummary[] {
+  return summarize(rows, (row) => row.grade).map((s) => ({
+    grade: s.key,
+    assigned: s.assigned,
+    boarded: s.boarded,
+    droppedOff: s.droppedOff,
+    absent: s.absent,
+    waiting: s.waiting,
+  }));
 }

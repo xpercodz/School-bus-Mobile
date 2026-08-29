@@ -1,10 +1,8 @@
 /**
- * Student roster — UI-only mock data.
- *
- * This module is the single source of truth for the attendance screen: the
- * chips, tabs, and list all derive their counts/ids from here, so they can
- * never disagree. When Firebase lands, replace `STUDENTS` with a Firestore
- * query that returns the same `Student` shape — nothing else changes.
+ * Roster types and presentation config — shared by the mobile roster and the
+ * dashboard. No data lives here anymore: attendance rows come from Firestore
+ * (`useRunRoster` / `useDashboardData`) and the app shows a sign-in prompt when
+ * there is no live data.
  *
  * User-facing labels are intentionally NOT here — components resolve them via
  * `t()` (i18n), keyed off `status`/`id`, so the same data renders in both
@@ -110,19 +108,3 @@ export function countByStatus(
   }
   return counts;
 }
-
-/** Mock roster — the 5 canonical students from the design, plus fillers. */
-export const STUDENTS: readonly Student[] = [
-  { id: "liam-johnson", name: "Liam Johnson", grade: "Grade 4B", status: "BOARDED" },
-  { id: "sophia-chen", name: "Sophia Chen", grade: "Grade 3A", status: "WAITING" },
-  { id: "marcus-williams", name: "Marcus Williams", grade: "Grade 5C", status: "DROPPED_OFF" },
-  { id: "emma-davis", name: "Emma Davis", grade: "Grade 4B", status: "WAITING" },
-  { id: "noah-smith", name: "Noah Smith", grade: "Grade 3A", status: "ABSENT" },
-  { id: "ava-martinez", name: "Ava Martinez", grade: "Grade 5C", status: "BOARDED" },
-  { id: "ethan-brown", name: "Ethan Brown", grade: "Grade 4A", status: "BOARDED" },
-  { id: "mia-wilson", name: "Mia Wilson", grade: "Grade 3B", status: "BOARDED" },
-  { id: "lucas-garcia", name: "Lucas Garcia", grade: "Grade 4B", status: "BOARDED" },
-  { id: "isabella-lee", name: "Isabella Lee", grade: "Grade 5A", status: "BOARDED" },
-  { id: "oliver-taylor", name: "Oliver Taylor", grade: "Grade 3C", status: "BOARDED" },
-  { id: "charlotte-anderson", name: "Charlotte Anderson", grade: "Grade 4A", status: "DROPPED_OFF" },
-];

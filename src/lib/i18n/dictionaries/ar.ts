@@ -41,6 +41,11 @@ export const messages: Messages = {
   "mobile.emptySubtitle": "جرّب اسماً آخر",
   "mobile.syncStatus": "حالة المزامنة",
   "mobile.completeRun": "إنهاء الرحلة",
+  "mobile.completed": "مكتملة",
+  "mobile.signInPromptTitle": "سجّل الدخول لعرض قائمة الحضور الحية",
+  "mobile.signInPromptBody":
+    "تُحمَّل القائمة من بيانات مدرستك الحية بعد تسجيل الدخول.",
+  "mobile.signInAction": "تسجيل الدخول",
 
   // Roster filter tabs
   "tabs.filterAria": "تصفية الطلاب حسب الحالة",
@@ -89,6 +94,8 @@ export const messages: Messages = {
   "dashboard.th.dropOffTime": "وقت التوصيل",
   "dashboard.th.currentStatus": "الحالة الحالية",
   "dashboard.th.actions": "إجراءات",
+  "dashboard.th.assigned": "المخصص",
+  "dashboard.th.completion": "الإكمال",
   "dashboard.emptyTitle": "لا يوجد طلاب",
   "dashboard.emptySubtitle": "جرّب اسماً آخر",
   "dashboard.callAria": "اتصال بـ {name}",
@@ -105,9 +112,12 @@ export const messages: Messages = {
   "dashboard.searchAria": "بحث عن الطلاب",
   "dashboard.searchPlaceholder": "ابحث عن طالب أو ولي أمر أو حافلة...",
   "dashboard.export": "تصدير CSV / PDF",
+  "dashboard.selectDate": "اختر تاريخاً",
+  "dashboard.liveUnavailable": "البيانات الحية غير متاحة — سجّل الدخول للمتابعة.",
   "dashboard.notificationsAria": "الإشعارات",
   "dashboard.helpAria": "المساعدة",
   "dashboard.settingsAria": "الإعدادات",
+  "dashboard.noContactNumber": "لا يوجد رقم اتصال مسجل",
 
   // KPI cards
   "kpi.total.label": "إجمالي المخصصين",
@@ -118,6 +128,103 @@ export const messages: Messages = {
   "kpi.dropped.footer": "وصلوا إلى المدرسة",
   "kpi.absent.label": "غائب / قيد الانتظار",
   "kpi.absent.footer": "يتطلب إجراء",
+
+  // Roles
+  "role.director": "مدير",
+  "role.staff": "مشرف",
+
+  // Shared dialogs
+  "dialog.close": "إغلاق",
+  "dialog.cancel": "إلغاء",
+  "dialog.confirm": "تأكيد",
+
+  // Run details (mobile overflow sheet)
+  "runDetails.title": "تفاصيل الرحلة",
+  "runDetails.bus": "الحافلة",
+  "runDetails.type": "نوع الرحلة",
+  "runDetails.date": "التاريخ",
+  "runDetails.status": "الحالة",
+  "runDetails.noRun": "لم تبدأ رحلة بعد",
+
+  // Student attendance history
+  "history.title": "سجل الحضور",
+  "history.loading": "جارٍ تحميل السجل…",
+  "history.empty": "لا يوجد سجل حضور لهذا الطالب",
+  "history.loadMore": "تحميل المزيد",
+  "history.col.date": "التاريخ",
+  "history.col.run": "الرحلة",
+  "history.col.status": "الحالة",
+  "history.col.bus": "الحافلة",
+
+  // Confirm dialogs
+  "confirm.completeRun.title": "إكمال هذه الرحلة؟",
+  "confirm.completeRun.body":
+    "سيتم وضع علامة غياب على الطلاب المنتظرين. لا يمكن التراجع.",
+  "confirm.signOut.title": "تسجيل الخروج؟",
+  "confirm.signOut.body": "ستُعاد إلى شاشة تسجيل الدخول.",
+
+  // Dispatch vehicle
+  "dispatch.title": "إرسال حافلة",
+  "dispatch.bus": "الحافلة",
+  "dispatch.runType": "نوع الرحلة",
+  "dispatch.date": "التاريخ",
+  "dispatch.selectBus": "اختر حافلة",
+  "dispatch.submit": "إرسال",
+  "dispatch.loadError": "تعذّر تحميل قائمة الحافلات.",
+
+  // Student kebab menu
+  "kebab.viewHistory": "عرض السجل",
+  "kebab.markAbsent": "وضع علامة غياب",
+
+  // Settings drawer
+  "settings.title": "الإعدادات",
+  "settings.account": "الحساب",
+  "settings.email": "البريد الإلكتروني",
+  "settings.role": "الدور",
+  "settings.language": "اللغة",
+  "settings.signOut": "تسجيل الخروج",
+
+  // Help dialog
+  "help.title": "المساعدة",
+  "help.content":
+    "تعرض لوحة التحكم حالة الحافلات الحية والمؤشرات وقائمة حضور الطلاب.\nاستخدم عنصر التحكم في نوع الرحلة للتبديل بين الاستلام الصباحي والتوصيل المسائي.\nاختر تاريخاً لعرض يوم سابق.\nالإرسال ينشئ رحلة جديدة ويسجل الطلاب المنتظرين.\nالتصدير ينزّل الصفوف المفلترة الحالية كملف CSV.",
+
+  // Toasts
+  "toast.exported": "تم تصدير {count} صفاً",
+  "toast.dispatched": "تم إرسال الحافلة",
+  "toast.runCompleted": "اكتملت الرحلة",
+  "toast.signedOut": "تم تسجيل الخروج",
+  "toast.markedAbsent": "تم وضع علامة غياب على {name}",
+  "toast.dispatchExists": "توجد رحلة مسبقة لهذه الحافلة والتاريخ والنوع",
+  "toast.error": "حدث خطأ ما. حاول مرة أخرى.",
+
+  // Analytics
+  "analytics.title": "تحليلات الحضور",
+  "analytics.subtitle": "ملخص الحضور لليوم المحدد ونوع الرحلة",
+  "analytics.perBus": "مقارنة حسب الحافلة",
+  "analytics.perGrade": "التفصيل حسب الصف",
+  "analytics.trendTitle": "اتجاه متعدد الأيام",
+  "analytics.trendHint": "إجماليات يومية عبر نطاق زمني",
+  "analytics.startDate": "تاريخ البداية",
+  "analytics.endDate": "تاريخ النهاية",
+  "analytics.trendLoading": "جارٍ تحميل الاتجاه…",
+  "analytics.trendEmpty": "لا توجد بيانات حضور في هذا النطاق",
+  "analytics.rangeTooLong": "النطاق الزمني طويل جداً — الحد الأقصى ٣١ يوماً",
+  "analytics.rangeInvalid": "يجب أن يكون تاريخ البداية قبل تاريخ النهاية",
+  "analytics.emptyTitle": "لا توجد بيانات حضور",
+  "analytics.emptySubtitle": "لا توجد سجلات لهذا التاريخ ونوع الرحلة بعد.",
+
+  // Reports
+  "reports.title": "تقرير الحضور",
+  "reports.subtitle": "ملخص حضوري قابل للطباعة لليوم المحدد ونوع الرحلة",
+  "reports.overview": "نظرة عامة",
+  "reports.byBus": "الملخص حسب الحافلة",
+  "reports.byGrade": "الملخص حسب الصف",
+  "reports.roster": "قائمة الحضور",
+  "reports.print": "طباعة",
+  "reports.export": "تصدير CSV",
+  "reports.emptyTitle": "لا توجد بيانات حضور",
+  "reports.emptySubtitle": "لا توجد سجلات لهذا التاريخ ونوع الرحلة بعد.",
 
   // Common
   "common.changeLanguageAria": "تغيير اللغة",

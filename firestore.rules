@@ -41,10 +41,17 @@ service cloud.firestore {
     }
 
     // ── users ──────────────────────────────────────────────────────────────
-    // Anyone can read profiles; a user may create/update their own.
+    // Anyone can read profiles. A user may create their own profile and update
+    // their own ONLY if role/schoolId are unchanged — otherwise an attacker
+    // could self-promote to director or switch tenants (role/schoolId are the
+    // authorization gates everywhere below). Client code never writes
+    // users/{uid}; profiles come from scripts/seed.mjs (Admin SDK).
     match /users/{uid} {
       allow read: if isSignedIn();
-      allow create, update: if request.auth.uid == uid;
+      allow create: if request.auth.uid == uid;
+      allow update: if request.auth.uid == uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.schoolId == resource.data.schoolId;
       allow delete: if false;
     }
 

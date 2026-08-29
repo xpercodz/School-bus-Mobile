@@ -7,10 +7,10 @@ One Next.js (App Router, TypeScript, Tailwind v4) app with two sections:
 - **`/dashboard` (desktop)** — the director's **School Transit Live Monitor**:
   KPI cards, active fleet grid, and a live student attendance table.
 
-Both sections read from **Firebase** (Auth + Firestore) when configured and
-signed in, and fall back to typed mock modules (`src/data/students.ts`,
-`src/data/dashboard.ts`) otherwise. See [`APP_OVERVIEW.md`](./APP_OVERVIEW.md)
-for the full picture and [`SECURITY.md`](./SECURITY.md) for the security model.
+Both sections are **live-only**: they read from **Firebase** (Auth + Firestore)
+and show a sign-in prompt when there's no session — there is no mock data. See
+[`APP_OVERVIEW.md`](./APP_OVERVIEW.md) for the full picture and
+[`SECURITY.md`](./SECURITY.md) for the security model.
 
 ## Getting Started
 

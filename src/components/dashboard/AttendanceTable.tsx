@@ -9,6 +9,8 @@ import { statusKey, toLocaleDigits, translateDataLabel } from "@/lib/i18n/format
 
 interface AttendanceTableProps {
   rows: readonly AttendanceRow[];
+  /** Open a student's attendance history (row History action). */
+  onViewHistory?: (name: string) => void;
 }
 
 /** Row background tint by status — tints the whole row, mirrors code.html. */
@@ -23,8 +25,8 @@ function timeCellClass(value: string): string {
   return value === "--:--:--" ? "text-dash-on-surface-variant" : "text-dash-on-surface";
 }
 
-/** Live student attendance table — the roster rows derived from the shared STUDENTS list. */
-export function AttendanceTable({ rows }: AttendanceTableProps) {
+/** Live student attendance table — rows come from Firestore via useDashboardData. */
+export function AttendanceTable({ rows, onViewHistory }: AttendanceTableProps) {
   const { t, locale, dir } = useLocale();
   const ltr = dir === "ltr";
 
@@ -118,15 +120,20 @@ export function AttendanceTable({ rows }: AttendanceTableProps) {
                     </span>
                   </td>
                   <td className="px-4 py-2 text-end">
+                    {/* Call is deferred — no contact numbers on file yet; keep it honestly disabled. */}
                     <button
                       type="button"
+                      disabled
+                      aria-disabled="true"
+                      title={t("dashboard.noContactNumber")}
                       aria-label={t("dashboard.callAria", { name: row.name })}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full text-dash-on-surface-variant transition-colors hover:bg-dash-surface-container-high hover:text-dash-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dash-primary"
+                      className="inline-flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-full text-dash-outline opacity-60"
                     >
                       <Icon name="call" size={16} variant="outlined" />
                     </button>
                     <button
                       type="button"
+                      onClick={() => onViewHistory?.(row.name)}
                       aria-label={t("dashboard.historyAria", { name: row.name })}
                       className="inline-flex h-10 w-10 items-center justify-center rounded-full text-dash-on-surface-variant transition-colors hover:bg-dash-surface-container-high hover:text-dash-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dash-primary"
                     >

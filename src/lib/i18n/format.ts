@@ -40,16 +40,36 @@ export function formatTime(ts: Date | null, locale: Locale): string {
   return timeFormatter(locale).format(ts);
 }
 
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function dateFormatter(locale: Locale): Intl.DateTimeFormat {
+  const code = locale === "ar" ? "ar-EG" : "en-US";
+  let fmt = dateFormatters.get(code);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat(code, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+    dateFormatters.set(code, fmt);
+  }
+  return fmt;
+}
+
 /**
- * Localize an already-formatted "HH:MM:SS AM/PM" string (the mock times) —
- * digit map + AM/PM → ص/م for ar. No-op for en.
+ * Format a "YYYY-MM-DD" string (the app's date key) as a localized date; ""
+ * when null. Built from parts so the Date is timezone-safe (never shifts a
+ * day); out-of-range parts are rejected rather than silently rolled over.
  */
-export function localizeTimeString(input: string, locale: Locale): string {
-  if (locale === "en") return input;
-  return input
-    .replace(/AM/gi, "ص")
-    .replace(/PM/gi, "م")
-    .replace(/[0-9]/g, (d) => AR_DIGITS[Number(d)]);
+export function formatDate(dateStr: string | null, locale: Locale): string {
+  if (!dateStr) return "";
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (!y || !m || !d) return dateStr;
+  const date = new Date(y, m - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) {
+    return dateStr;
+  }
+  return dateFormatter(locale).format(date);
 }
 
 /**

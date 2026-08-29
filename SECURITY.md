@@ -36,8 +36,11 @@ Security model for the app. Keep this accurate when controls change.
 
 ## Firestore rules (`firestore.rules`)
 
-- `users`: any signed-in user may read profiles; a user may create/update only
-  their own; no deletes.
+- `users`: any signed-in user may read profiles; a user may create their own and
+  update their own **only when `role`/`schoolId` are unchanged** (a user cannot
+  self-promote to director or switch tenants — those are the authorization
+  gates); no deletes. Client code never writes profiles; they come from the seed
+  script (Admin SDK).
 - `schools/{id}` + `students` + `buses`: read for the caller's school; writes
   **director only**.
 - `runs` + `attendance`: read for the caller's school; writes for **director or
@@ -55,9 +58,10 @@ Security model for the app. Keep this accurate when controls change.
 
 - **No rate limiting** on auth (rely on Firebase's built-in abuse protections;
   consider Firebase Auth quotas / reCAPTCHA if abuse appears).
-- **No per-field validation** in rules (e.g. status values, role values) — a
-  director could write arbitrary fields. Add `request.resource.data` validation
-  before production.
+- **Limited per-field validation** in rules: `role`/`schoolId` are locked on
+  self-update, but other fields (e.g. attendance `status` values, run fields)
+  are still not validated — a director could write arbitrary values. Add full
+  `request.resource.data` validation before production.
 - **No audit log** of attendance changes.
 - Seed users carry well-known default passwords (`Director123!`, `Monitor123!`)
   — change them or generate real ones before any production use.
