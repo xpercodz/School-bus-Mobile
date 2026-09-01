@@ -1,12 +1,10 @@
 /**
  * Locale configuration — the single place that lists supported languages.
- * Only `en` and `ar` exist today; add a locale here, a dictionary file, and a
- * LOCALE_DIR entry to grow the set.
+ * Only `en` and `ar` exist today; add a locale to the `Locale` union, a
+ * dictionary file, and a LOCALE_DIR entry to grow the set.
  */
 
-export const locales = ["en", "ar"] as const;
-
-export type Locale = (typeof locales)[number];
+export type Locale = "en" | "ar";
 
 /** English is the default; drivers switch to Arabic with the UI toggle. */
 export const defaultLocale: Locale = "en";

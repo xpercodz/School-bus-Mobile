@@ -3,15 +3,16 @@
 import { useMemo, useState } from "react";
 import type { RunSegmentId } from "@/data/dashboard";
 import { useDashboardData, todayDateStr } from "@/lib/school-data";
+import { useStudentList } from "@/lib/use-student-list";
 import { buildAttendanceCsv, downloadCsv } from "@/lib/csv";
 import { useToast } from "@/components/Toast";
-import { AttendanceTable } from "@/components/dashboard/AttendanceTable";
 import { BusCard } from "@/components/dashboard/BusCard";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { Icon } from "@/components/Icon";
 import { LiveMapSkeleton } from "@/components/dashboard/DashboardSkeletons";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { StudentHistorySheet } from "@/components/StudentHistorySheet";
+import { StudentList } from "@/components/dashboard/StudentList";
 import { useLocale } from "@/lib/i18n/context";
 import { toLocaleDigits } from "@/lib/i18n/format";
 
@@ -21,26 +22,23 @@ export default function DashboardPage() {
   const { kpis, buses, attendance, loading, live } = useDashboardData(date, segment);
   const { t, dir, locale } = useLocale();
   const ltr = dir === "ltr";
-  const [query, setQuery] = useState("");
   const [historyStudent, setHistoryStudent] = useState<string | null>(null);
   const { showToast } = useToast();
 
-  // Segment + search filter the attendance table (mirrors the mobile roster).
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return attendance.filter(
-      (row) =>
-        row.runType === segment &&
-        (q === "" || row.name.toLowerCase().includes(q)),
-    );
-  }, [attendance, segment, query]);
+  // The table shows the selected run segment; search/grade/status filters and
+  // pagination live in the shared student list state.
+  const segmentRows = useMemo(
+    () => attendance.filter((row) => row.runType === segment),
+    [attendance, segment],
+  );
+  const list = useStudentList(segmentRows);
 
   function handleExport() {
     const dateStr = date ?? todayDateStr();
-    downloadCsv(`attendance-${dateStr}.csv`, buildAttendanceCsv(filtered, t, locale));
+    downloadCsv(`attendance-${dateStr}.csv`, buildAttendanceCsv(list.filtered, t, locale));
     showToast(
       t("toast.exported", {
-        count: toLocaleDigits(String(filtered.length), locale),
+        count: toLocaleDigits(String(list.filtered.length), locale),
       }),
     );
   }
@@ -51,8 +49,6 @@ export default function DashboardPage() {
   return (
     <>
       <FilterBar
-        query={query}
-        onQueryChange={setQuery}
         segment={segment}
         onSegmentChange={setSegment}
         date={date}
@@ -104,7 +100,7 @@ export default function DashboardPage() {
         </section>
 
         {/* Live attendance */}
-        <AttendanceTable rows={filtered} onViewHistory={setHistoryStudent} />
+        <StudentList list={list} onViewHistory={setHistoryStudent} />
           </>
         )}
       </div>

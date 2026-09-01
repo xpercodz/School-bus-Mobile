@@ -39,4 +39,4 @@ if (typeof window !== "undefined" && isFirebaseConfigured) {
   db = getFirestore(app);
 }
 
-export { app, auth, db };
+export { auth, db };

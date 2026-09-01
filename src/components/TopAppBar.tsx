@@ -8,7 +8,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useAuth } from "@/lib/auth";
 import { useLocale } from "@/lib/i18n/context";
 import { useSignOut } from "@/lib/sign-out";
-import { formatDate, translateDataLabel } from "@/lib/i18n/format";
+import { formatDate, toLocaleDigits, translateDataLabel } from "@/lib/i18n/format";
 
 interface TopAppBarProps {
   runMeta: { busId: string; runType: string; date: string };
@@ -50,17 +50,22 @@ export function TopAppBar({ runMeta, runStatus, runExists }: TopAppBarProps) {
     await signOut();
   }
 
-  const busLabel = translateDataLabel(
-    `Bus ${runMeta.busId.replace(/^bus/, "")}`,
-    locale,
-    t,
-  );
+  const busNumber = runMeta.busId
+    ? toLocaleDigits(runMeta.busId.replace(/^bus/, ""), locale)
+    : null;
+  const busLabel = runMeta.busId
+    ? translateDataLabel(`Bus ${runMeta.busId.replace(/^bus/, "")}`, locale, t)
+    : "—";
 
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center justify-between bg-surface px-4">
       <div className="flex items-center gap-2">
         <Icon name="directions_bus" />
-        <h1 className="text-headline-md">{t("mobile.appBarTitle")}</h1>
+        <h1 className="text-headline-md">
+          {busNumber
+            ? t("mobile.appBarTitle", { bus: busNumber })
+            : t("mobile.appBarTitleNoBus")}
+        </h1>
       </div>
       <div className="flex items-center gap-1">
         <LanguageToggle />

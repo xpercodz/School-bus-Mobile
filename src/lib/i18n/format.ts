@@ -17,19 +17,23 @@ export function toLocaleDigits(input: string, locale: Locale): string {
   return input.replace(/[0-9]/g, (d) => AR_DIGITS[Number(d)]);
 }
 
-const timeFormatters = new Map<string, Intl.DateTimeFormat>();
+/** Intl locale tag — Arabic formats via ar-EG (Eastern Arabic digits). */
+function localeCode(locale: Locale): string {
+  return locale === "ar" ? "ar-EG" : "en-US";
+}
 
-function timeFormatter(locale: Locale): Intl.DateTimeFormat {
-  const code = locale === "ar" ? "ar-EG" : "en-US";
-  let fmt = timeFormatters.get(code);
+const formatterCache = new Map<string, Intl.DateTimeFormat>();
+
+/** Memoized `Intl.DateTimeFormat` — one instance per (locale, options) pair. */
+function cachedFormatter(
+  code: string,
+  options: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat {
+  const key = `${code}|${JSON.stringify(options)}`;
+  let fmt = formatterCache.get(key);
   if (!fmt) {
-    fmt = new Intl.DateTimeFormat(code, {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: true,
-    });
-    timeFormatters.set(code, fmt);
+    fmt = new Intl.DateTimeFormat(code, options);
+    formatterCache.set(key, fmt);
   }
   return fmt;
 }
@@ -37,23 +41,12 @@ function timeFormatter(locale: Locale): Intl.DateTimeFormat {
 /** Format a Date as a localized 12-hour clock; "--:--:--" when null. */
 export function formatTime(ts: Date | null, locale: Locale): string {
   if (!ts) return "--:--:--";
-  return timeFormatter(locale).format(ts);
-}
-
-const dateFormatters = new Map<string, Intl.DateTimeFormat>();
-
-function dateFormatter(locale: Locale): Intl.DateTimeFormat {
-  const code = locale === "ar" ? "ar-EG" : "en-US";
-  let fmt = dateFormatters.get(code);
-  if (!fmt) {
-    fmt = new Intl.DateTimeFormat(code, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-    dateFormatters.set(code, fmt);
-  }
-  return fmt;
+  return cachedFormatter(localeCode(locale), {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  }).format(ts);
 }
 
 /**
@@ -69,7 +62,11 @@ export function formatDate(dateStr: string | null, locale: Locale): string {
   if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) {
     return dateStr;
   }
-  return dateFormatter(locale).format(date);
+  return cachedFormatter(localeCode(locale), {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
 }
 
 /**

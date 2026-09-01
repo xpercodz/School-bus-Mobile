@@ -2,9 +2,10 @@
  * Seed script — one-time bootstrap of the school-bus Firestore database.
  *
  * Creates (idempotently):
- *   - the director Auth user (email/password) + their users/{uid} profile
- *   - a demo school with 4 buses, 32 students, and today's morning runs
- *     with attendance records for every bus
+ *   - the director + two staff (bus monitor/driver) Auth users + profiles
+ *   - a demo school with 4 buses (bus04 ↔ monitor, bus01 ↔ monitor2 via
+ *     driverUid), 32 students, and today's morning runs with attendance
+ *     records for every bus
  *
  * Requires:
  *   - firebase-admin (devDependency)
@@ -40,6 +41,9 @@ const DIRECTOR_NAME = process.env.DIRECTOR_NAME ?? "School Director";
 const STAFF_EMAIL = process.env.STAFF_EMAIL ?? "monitor@schoolbus.demo";
 const STAFF_PASSWORD = process.env.STAFF_PASSWORD ?? "Monitor123!";
 const STAFF_NAME = process.env.STAFF_NAME ?? "Alex Rivera";
+const MONITOR2_EMAIL = process.env.MONITOR2_EMAIL ?? "monitor2@schoolbus.demo";
+const MONITOR2_PASSWORD = process.env.MONITOR2_PASSWORD ?? "Monitor123!";
+const MONITOR2_NAME = process.env.MONITOR2_NAME ?? "Dana Ortiz";
 
 if (!existsSync(SERVICE_ACCOUNT)) {
   console.error(
@@ -50,11 +54,14 @@ if (!existsSync(SERVICE_ACCOUNT)) {
 }
 
 // ── seed data ────────────────────────────────────────────────────────────────
+// bus01/bus04 drivers match the staff displayNames below (the `driver` field is
+// a denormalized display copy of the linked user's name). bus02/bus03 keep
+// legacy names with no linked login.
 const BUSES = [
-  { id: "bus01", name: "Bus 01", driver: "John Doe" },
+  { id: "bus01", name: "Bus 01", driver: MONITOR2_NAME },
   { id: "bus02", name: "Bus 02", driver: "Rita Patel" },
   { id: "bus03", name: "Bus 03", driver: "Tomás Reyes" },
-  { id: "bus04", name: "Bus 04", driver: "Sarah Jenkins" },
+  { id: "bus04", name: "Bus 04", driver: STAFF_NAME },
 ];
 
 // Bus 04 = the 12 students from the mobile roster UI (statuses match).
@@ -172,6 +179,16 @@ async function seed() {
     );
   console.log(`+ users/${staff.uid} (role=staff, schoolId=${SCHOOL_ID})`);
 
+  // Second staff account so the per-driver mobile roster is demonstrable.
+  const monitor2 = await ensureUser(MONITOR2_EMAIL, MONITOR2_PASSWORD, MONITOR2_NAME);
+  await db
+    .doc(`users/${monitor2.uid}`)
+    .set(
+      { role: "staff", schoolId: SCHOOL_ID, email: MONITOR2_EMAIL, displayName: MONITOR2_NAME },
+      { merge: true },
+    );
+  console.log(`+ users/${monitor2.uid} (role=staff, schoolId=${SCHOOL_ID})`);
+
   // 2. School
   await db.doc(`schools/${SCHOOL_ID}`).set(
     { name: SCHOOL_NAME, createdAt: Timestamp.now() },
@@ -179,11 +196,21 @@ async function seed() {
   );
   console.log(`+ schools/${SCHOOL_ID} (${SCHOOL_NAME})`);
 
-  // 3. Buses
+  // 3. Buses — the two staff accounts are linked via driverUid so the mobile
+  //    roster is per-driver (monitor → bus04, monitor2 → bus01).
+  const DRIVER_UID_BY_BUS = {
+    bus01: monitor2.uid,
+    bus04: staff.uid,
+  };
   for (const bus of BUSES) {
-    await db.doc(`schools/${SCHOOL_ID}/buses/${bus.id}`).set(bus);
+    await db.doc(`schools/${SCHOOL_ID}/buses/${bus.id}`).set({
+      ...bus,
+      ...(DRIVER_UID_BY_BUS[bus.id] ? { driverUid: DRIVER_UID_BY_BUS[bus.id] } : {}),
+    });
   }
-  console.log(`+ ${BUSES.length} buses`);
+  console.log(
+    `+ ${BUSES.length} buses (${Object.keys(DRIVER_UID_BY_BUS).length} with a linked driver)`,
+  );
 
   // 4. Students
   for (const s of STUDENTS) {
@@ -226,7 +253,8 @@ async function seed() {
 
   console.log("\nSeed complete.");
   console.log(`Director login: ${DIRECTOR_EMAIL} / ${DIRECTOR_PASSWORD}  (→ /dashboard)`);
-  console.log(`Staff login:    ${STAFF_EMAIL} / ${STAFF_PASSWORD}  (→ /)`);
+  console.log(`Staff login:    ${STAFF_EMAIL} / ${STAFF_PASSWORD}  (→ /, Bus 04)`);
+  console.log(`Staff 2 login:  ${MONITOR2_EMAIL} / ${MONITOR2_PASSWORD}  (→ /, Bus 01)`);
   process.exit(0);
 }
 

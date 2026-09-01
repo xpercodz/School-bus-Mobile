@@ -19,6 +19,17 @@ export const DASH_STATUS_META: Record<StudentStatus, string> = {
   WAITING: "bg-dash-warning-container text-dash-on-warning-container border-dash-warning/50",
 };
 
+/** Student-list status filter options — "All" plus every status. */
+export const STUDENT_STATUS_FILTERS: readonly ("ALL" | StudentStatus)[] = [
+  "ALL",
+  "BOARDED",
+  "WAITING",
+  "DROPPED_OFF",
+  "ABSENT",
+];
+
+export type StudentStatusFilter = (typeof STUDENT_STATUS_FILTERS)[number];
+
 export type MetricTone = "default" | "success" | "error";
 
 export interface KPI {
@@ -85,12 +96,14 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { id: "routes", icon: "route" },
   { id: "analytics", icon: "monitoring", href: "/dashboard/analytics" },
   { id: "reports", icon: "assessment", href: "/dashboard/reports" },
+  { id: "assignments", icon: "assignment_ind", href: "/dashboard/assignments" },
 ];
 
 /** Map the current pathname to the active sidebar item id (shell pages → live-map). */
 export function activeIdFromPathname(pathname: string): string {
   if (pathname.startsWith("/dashboard/analytics")) return "analytics";
   if (pathname.startsWith("/dashboard/reports")) return "reports";
+  if (pathname.startsWith("/dashboard/assignments")) return "assignments";
   return "live-map";
 }
 

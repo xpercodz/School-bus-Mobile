@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   collection,
   doc,
-  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -36,10 +35,11 @@ import {
 import { useLocale } from "@/lib/i18n/context";
 import { formatTime } from "@/lib/i18n/format";
 import type { MessageKey, TFunction } from "@/lib/i18n/types";
+import { fetchSchoolId } from "@/lib/school-id";
+import { useCursorPage } from "@/lib/use-cursor-page";
 
-/** The mobile roster always shows Bus #04's morning run (matches the design). */
-export const ROSTER_BUS_ID = "bus04";
-export const ROSTER_RUN_TYPE = "morning";
+/** The mobile roster is always the morning run (by design); the bus comes from the user's assignment. */
+const ROSTER_RUN_TYPE = "morning";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -59,26 +59,8 @@ export function buildRunId(busId: string, dateStr: string, runType: string): str
  * Run type from a run id — the last `-` token. Dates contain `-`; run types
  * ("morning" / "afternoon") never do.
  */
-export function runTypeFromRunId(runId: string): "morning" | "afternoon" {
+function runTypeFromRunId(runId: string): "morning" | "afternoon" {
   return runId.split("-").at(-1) === "afternoon" ? "afternoon" : "morning";
-}
-
-/** Cached users/{uid} → schoolId lookup. */
-const schoolIdCache = new Map<string, string>();
-
-/** Resolve the caller's tenant id from their profile doc (cached). */
-export async function fetchSchoolId(uid: string): Promise<string | null> {
-  const cached = schoolIdCache.get(uid);
-  if (cached) return cached;
-  if (!db) return null;
-  try {
-    const snap = await getDoc(doc(db, "users", uid));
-    const schoolId = (snap.data()?.schoolId as string | undefined) ?? null;
-    if (schoolId) schoolIdCache.set(uid, schoolId);
-    return schoolId;
-  } catch {
-    return null;
-  }
 }
 
 /** Build dashboard KPI cards with the active locale's label/footer text. */
@@ -131,35 +113,25 @@ function useLiveFlag(): boolean {
 
 // ── mobile roster ────────────────────────────────────────────────────────────
 
-export interface RunRoster {
-  roster: readonly Student[];
+interface DriverBus {
+  /** The signed-in driver's bus id, or null when they aren't linked to one. */
+  busId: string | null;
   loading: boolean;
-  live: boolean;
-  /** Advance a student's status — writes the new status to Firestore. */
-  cycleStatus: (id: string) => void;
-  /** True when the current run is marked COMPLETED. */
-  completed: boolean;
-  /** Live run status for the run-details sheet. */
-  runStatus: "IN_PROGRESS" | "COMPLETED";
-  /** Whether a run doc exists for this bus/date/type. */
-  runExists: boolean;
-  /** Static identity of the run the roster shows (for the run-details sheet). */
-  runMeta: { busId: string; runType: string; date: string };
-  /** Complete the run: mark it COMPLETED and any WAITING students ABSENT. */
-  completeRun: () => Promise<void>;
-  /** Set a student's status to ABSENT directly (kebab-menu shortcut). */
-  markAbsent: (id: string) => void;
 }
 
-export function useRunRoster(): RunRoster {
+/**
+ * Realtime bus id for the signed-in staff user — `buses where driverUid == uid`.
+ * One driver is assigned to one bus (enforced client-side in Assignments), so
+ * the query needs no orderBy (single-field equality — no composite index) and
+ * just takes the first match. `loading` is true until the query resolves for
+ * this user.
+ */
+function useDriverBus(): DriverBus {
   const live = useLiveFlag();
   const { user } = useAuth();
   const uid = user?.uid;
 
-  const [roster, setRoster] = useState<readonly Student[]>([]);
-  const [runStatus, setRunStatus] = useState<RunDoc["status"]>("IN_PROGRESS");
-  const [runExists, setRunExists] = useState(false);
-  // loading = live && we haven't received the first snapshot for this user yet.
+  const [busId, setBusId] = useState<string | null>(null);
   const [loadedUid, setLoadedUid] = useState<string | null>(null);
   const loading = live && loadedUid !== uid;
 
@@ -172,10 +144,91 @@ export function useRunRoster(): RunRoster {
     void fetchSchoolId(uid).then((schoolId) => {
       if (cancelled) return;
       if (!schoolId) {
+        setBusId(null);
         setLoadedUid(uid);
         return;
       }
-      const runId = buildRunId(ROSTER_BUS_ID, todayDateStr(), ROSTER_RUN_TYPE);
+      unsubscribers.push(
+        onSnapshot(
+          query(
+            collection(firestore, "schools", schoolId, "buses"),
+            where("driverUid", "==", uid),
+          ),
+          (snap) => {
+            if (cancelled) return;
+            setBusId(snap.docs[0]?.id ?? null);
+            setLoadedUid(uid);
+          },
+          () => {
+            if (!cancelled) setLoadedUid(uid);
+          },
+        ),
+      );
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribers.forEach((u) => u());
+    };
+  }, [live, uid]);
+
+  return { busId, loading };
+}
+
+export interface RunRoster {
+  roster: readonly Student[];
+  loading: boolean;
+  live: boolean;
+  /** Advance a student's status — writes the new status to Firestore. */
+  cycleStatus: (id: string) => void;
+  /** True when the current run is marked COMPLETED. */
+  completed: boolean;
+  /** Live run status for the run-details sheet. */
+  runStatus: "IN_PROGRESS" | "COMPLETED";
+  /** Whether a run doc exists for this bus/date/type. */
+  runExists: boolean;
+  /** Static identity of the run the roster shows (for the run-details sheet). busId is "" when the user has no bus. */
+  runMeta: { busId: string; runType: string; date: string };
+  /** Complete the run: mark it COMPLETED and any WAITING students ABSENT. */
+  completeRun: () => Promise<void>;
+  /** Set a student's status to ABSENT directly (kebab-menu shortcut). */
+  markAbsent: (id: string) => void;
+}
+
+export function useRunRoster(): RunRoster {
+  const live = useLiveFlag();
+  const { user } = useAuth();
+  const uid = user?.uid;
+  const { busId, loading: busLoading } = useDriverBus();
+
+  const [roster, setRoster] = useState<readonly Student[]>([]);
+  const [runStatus, setRunStatus] = useState<RunDoc["status"]>("IN_PROGRESS");
+  const [runExists, setRunExists] = useState(false);
+  // loading = live && the bus/roster snapshot hasn't landed for this key yet.
+  // The key includes busId so a live driver reassignment re-shows the skeleton
+  // until the new bus's roster arrives (never a stale bus's students).
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const key = `${uid ?? ""}|${busId ?? ""}`;
+  const loading = live && (busLoading || loadedKey !== key);
+
+  useEffect(() => {
+    if (!live || !uid || !db) return;
+    if (busLoading) return;
+    const firestore = db;
+    let cancelled = false;
+    const unsubscribers: (() => void)[] = [];
+    const effectKey = `${uid}|${busId ?? ""}`;
+
+    void fetchSchoolId(uid).then((schoolId) => {
+      if (cancelled) return;
+      if (!schoolId || !busId) {
+        // No school, or this user isn't assigned to a bus — no roster to show.
+        setRoster([]);
+        setRunExists(false);
+        setLoadedKey(effectKey);
+        return;
+      }
+      const runId = buildRunId(busId, todayDateStr(), ROSTER_RUN_TYPE);
       const attQuery = query(
         collection(firestore, "schools", schoolId, "attendance"),
         where("runId", "==", runId),
@@ -198,9 +251,9 @@ export function useRunRoster(): RunRoster {
               })
               .sort((a, b) => a.name.localeCompare(b.name));
             setRoster(list);
-            setLoadedUid(uid);
+            setLoadedKey(effectKey);
           },
-          () => setLoadedUid(uid),
+          () => setLoadedKey(effectKey),
         ),
       );
       unsubscribers.push(
@@ -215,11 +268,11 @@ export function useRunRoster(): RunRoster {
       cancelled = true;
       unsubscribers.forEach((u) => u());
     };
-  }, [live, uid]);
+  }, [live, uid, busId, busLoading]);
 
   function cycleStatus(id: string) {
     // Completed runs are locked — no status changes after sign-off.
-    if (!live || !uid || !db || runStatus === "COMPLETED") return;
+    if (!live || !uid || !db || !busId || runStatus === "COMPLETED") return;
     const firestore = db;
     const current = roster.find((s) => s.id === id);
     if (!current) return;
@@ -227,7 +280,7 @@ export function useRunRoster(): RunRoster {
       STATUS_CYCLE[(STATUS_CYCLE.indexOf(current.status) + 1) % STATUS_CYCLE.length];
     void fetchSchoolId(uid).then((schoolId) => {
       if (!schoolId) return;
-      const runId = buildRunId(ROSTER_BUS_ID, todayDateStr(), ROSTER_RUN_TYPE);
+      const runId = buildRunId(busId, todayDateStr(), ROSTER_RUN_TYPE);
       // Record boarding/drop-off timestamps so the dashboard columns populate.
       const patch: { status: StudentStatus; boardedAt?: FieldValue; droppedOffAt?: FieldValue } = {
         status: next,
@@ -243,18 +296,18 @@ export function useRunRoster(): RunRoster {
   }
 
   async function completeRun(): Promise<void> {
-    if (!live || !uid || !db) return;
+    if (!live || !uid || !db || !busId) return;
     const firestore = db;
     const schoolId = await fetchSchoolId(uid);
     if (!schoolId) return;
-    const runId = buildRunId(ROSTER_BUS_ID, todayDateStr(), ROSTER_RUN_TYPE);
+    const runId = buildRunId(busId, todayDateStr(), ROSTER_RUN_TYPE);
     // Atomic: complete the run and mark waiting students absent together. Write
     // the full run fields so a missing run doc (fresh day) isn't created partial.
     const batch = writeBatch(firestore);
     batch.set(
       doc(firestore, "schools", schoolId, "runs", runId),
       {
-        busId: ROSTER_BUS_ID,
+        busId,
         runType: ROSTER_RUN_TYPE,
         date: todayDateStr(),
         status: "COMPLETED",
@@ -274,11 +327,11 @@ export function useRunRoster(): RunRoster {
   }
 
   function markAbsent(id: string) {
-    if (!live || !uid || !db || runStatus === "COMPLETED") return;
+    if (!live || !uid || !db || !busId || runStatus === "COMPLETED") return;
     const firestore = db;
     void fetchSchoolId(uid).then((schoolId) => {
       if (!schoolId) return;
-      const runId = buildRunId(ROSTER_BUS_ID, todayDateStr(), ROSTER_RUN_TYPE);
+      const runId = buildRunId(busId, todayDateStr(), ROSTER_RUN_TYPE);
       void setDoc(
         doc(firestore, "schools", schoolId, "attendance", `${runId}__${id}`),
         { status: "ABSENT" },
@@ -296,7 +349,7 @@ export function useRunRoster(): RunRoster {
     runStatus,
     runExists,
     runMeta: {
-      busId: ROSTER_BUS_ID,
+      busId: busId ?? "",
       runType: ROSTER_RUN_TYPE,
       date: todayDateStr(),
     },
@@ -528,111 +581,23 @@ export function useStudentHistory(
   enabled: boolean,
 ): StudentHistory {
   const live = useLiveFlag();
-  const { user } = useAuth();
-  const uid = user?.uid;
+  const { items, loading, hasMore, loadMore } = useCursorPage<HistoryEntry>({
+    enabled: enabled && !!studentName,
+    pageSize: HISTORY_PAGE_SIZE,
+    deps: [enabled, studentName, live],
+    buildQuery: (firestore, schoolId, cursor) => {
+      const base = query(
+        collection(firestore, "schools", schoolId, "attendance"),
+        where("studentName", "==", studentName),
+        orderBy("date", "desc"),
+        orderBy("runId", "desc"),
+      );
+      return cursor ? query(base, startAfter(cursor)) : base;
+    },
+    mapItem: toHistoryEntry,
+  });
 
-  const [entries, setEntries] = useState<HistoryEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
-  // Latest student the sheet is showing — lets an in-flight loadMore drop its
-  // page if the student changed underneath it.
-  const currentStudentRef = useRef(studentName);
-  useEffect(() => {
-    currentStudentRef.current = studentName;
-  }, [studentName]);
-
-  useEffect(() => {
-    if (!enabled || !studentName) return;
-    let cancelled = false;
-
-    // Defer the initial state reset out of the effect body (the sheet is hidden
-    // when closed; on reopen/student change we clear before the new query lands).
-    if (!live || !uid || !db) {
-      // No mock fallback — clear any stale entries so the sheet shows its empty
-      // state until real data arrives.
-      queueMicrotask(() => {
-        if (cancelled) return;
-        setEntries([]);
-        setHasMore(false);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const firestore = db;
-    queueMicrotask(() => {
-      if (cancelled) return;
-      setEntries([]);
-      setLoading(true);
-      setLastVisible(null);
-    });
-    void fetchSchoolId(uid).then(async (schoolId) => {
-      if (cancelled || !schoolId) return;
-      try {
-        const snap = await getDocs(
-          query(
-            collection(firestore, "schools", schoolId, "attendance"),
-            where("studentName", "==", studentName),
-            orderBy("date", "desc"),
-            orderBy("runId", "desc"),
-            limit(HISTORY_PAGE_SIZE),
-          ),
-        );
-        if (cancelled) return;
-        setEntries(snap.docs.map(toHistoryEntry));
-        setHasMore(snap.docs.length === HISTORY_PAGE_SIZE);
-        setLastVisible(
-          snap.docs.length === HISTORY_PAGE_SIZE
-            ? snap.docs[snap.docs.length - 1]
-            : null,
-        );
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, studentName, live, uid]);
-
-  function loadMore() {
-    if (!live || !uid || !db || !lastVisible || loading || !studentName) return;
-    const firestore = db;
-    setLoading(true);
-    void fetchSchoolId(uid).then(async (schoolId) => {
-      if (!schoolId) return;
-      try {
-        const snap = await getDocs(
-          query(
-            collection(firestore, "schools", schoolId, "attendance"),
-            where("studentName", "==", studentName),
-            orderBy("date", "desc"),
-            orderBy("runId", "desc"),
-            startAfter(lastVisible),
-            limit(HISTORY_PAGE_SIZE),
-          ),
-        );
-        setEntries((prev) => {
-          // The student switched while this page was in flight — drop it.
-          if (currentStudentRef.current !== studentName) return prev;
-          return [...prev, ...snap.docs.map(toHistoryEntry)];
-        });
-        setHasMore(snap.docs.length === HISTORY_PAGE_SIZE);
-        setLastVisible(
-          snap.docs.length === HISTORY_PAGE_SIZE
-            ? snap.docs[snap.docs.length - 1]
-            : null,
-        );
-      } finally {
-        setLoading(false);
-      }
-    });
-  }
-
-  return { entries, loading, live, hasMore, loadMore };
+  return { entries: items, loading, live, hasMore, loadMore };
 }
 
 // ── attendance trend ─────────────────────────────────────────────────────────
@@ -656,7 +621,7 @@ const TREND_PAGE_SIZE = 500;
 const TREND_MAX_DOCS = 10_000;
 
 /** YYYY-MM-DD for N days ago (trend default range). */
-export function daysAgoDateStr(days: number): string {
+function daysAgoDateStr(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
   const pad = (n: number) => String(n).padStart(2, "0");

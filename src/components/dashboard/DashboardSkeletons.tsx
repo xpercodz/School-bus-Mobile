@@ -7,7 +7,7 @@ import { Skeleton, SkeletonText } from "@/components/Skeleton";
  */
 
 /** Mirrors MetricCard: label line, big metric number, bottom-right footer. */
-export function SkeletonMetricCard() {
+function SkeletonMetricCard() {
   return (
     <div className="flex flex-col gap-3 rounded border border-dash-outline-variant bg-dash-surface p-4">
       <SkeletonText className="w-24" />
@@ -18,7 +18,7 @@ export function SkeletonMetricCard() {
 }
 
 /** Mirrors the 4-up KPI grid on every dashboard page. */
-export function SkeletonKpiGrid() {
+function SkeletonKpiGrid() {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
       {[0, 1, 2, 3].map((i) => (
@@ -29,7 +29,7 @@ export function SkeletonKpiGrid() {
 }
 
 /** Mirrors BusCard: name/driver + status badge, progress bar, In/Out/Wait row. */
-export function SkeletonBusCard() {
+function SkeletonBusCard() {
   return (
     <div className="flex flex-col gap-4 rounded border border-dash-outline-variant bg-dash-surface p-4">
       <div className="flex items-start justify-between">
@@ -59,7 +59,7 @@ export function SkeletonBusCard() {
 }
 
 /** Mirrors the "Active Fleet Status" grid (title + en-route count + cards). */
-export function SkeletonFleetGrid() {
+function SkeletonFleetGrid() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between border-b border-dash-outline-variant pb-2">
@@ -80,7 +80,7 @@ export function SkeletonFleetGrid() {
  * `"w-40"`, `"flex-1"` for a bar column) so each table's skeleton matches its
  * real column widths.
  */
-export function SkeletonTable({
+function SkeletonTable({
   widths,
   rows = 6,
 }: {
@@ -109,7 +109,7 @@ export function SkeletonTable({
 }
 
 /** Mirrors the multi-day trend chart: a row of vertical bars of varying height. */
-export function SkeletonTrend() {
+function SkeletonTrend() {
   const heights = [45, 70, 55, 85, 60, 90, 50];
   return (
     <div className="flex items-end gap-2 pb-1">
@@ -178,6 +178,18 @@ export function ReportsSkeleton() {
       <SkeletonTable widths={["w-24", "w-8", "w-8", "w-8", "w-8"]} rows={4} />
       <SkeletonText className="h-4 w-40" />
       <SkeletonTable widths={ROSTER_COLUMNS} />
+    </div>
+  );
+}
+
+/** Assignments loading state: a Drivers table skeleton + a Students table skeleton. */
+export function AssignmentsSkeleton() {
+  return (
+    <div className="flex flex-col gap-6">
+      <SkeletonText className="h-4 w-40" />
+      <SkeletonTable widths={["w-24", "w-40", "w-24"]} rows={4} />
+      <SkeletonText className="h-4 w-40" />
+      <SkeletonTable widths={["w-48", "w-16", "w-24"]} rows={6} />
     </div>
   );
 }

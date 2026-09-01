@@ -31,7 +31,8 @@ export const messages: Messages = {
 
   // Mobile roster screen
   "mobile.loading": "جارٍ تحميل القائمة…",
-  "mobile.appBarTitle": "حافلة #٠٤ • الرحلة الصباحية",
+  "mobile.appBarTitle": "حافلة #{bus} • الرحلة الصباحية",
+  "mobile.appBarTitleNoBus": "الرحلة الصباحية",
   "mobile.moreOptionsAria": "خيارات إضافية",
   "mobile.moreOptionsForAria": "خيارات إضافية لـ {name}",
   "mobile.searchAria": "بحث عن الطلاب",
@@ -46,6 +47,9 @@ export const messages: Messages = {
   "mobile.signInPromptBody":
     "تُحمَّل القائمة من بيانات مدرستك الحية بعد تسجيل الدخول.",
   "mobile.signInAction": "تسجيل الدخول",
+  "mobile.noBusTitle": "لا توجد حافلة معيّنة",
+  "mobile.noBusBody":
+    "حسابك غير مرتبط بحافلة بعد. اطلب من مدير المدرسة تعيين حافلة لك.",
 
   // Roster filter tabs
   "tabs.filterAria": "تصفية الطلاب حسب الحالة",
@@ -77,6 +81,7 @@ export const messages: Messages = {
   "nav.routes": "المسارات",
   "nav.analytics": "التحليلات",
   "nav.reports": "التقارير",
+  "nav.assignments": "التعيينات",
   "nav.dispatch": "إرسال حافلة",
 
   // Dashboard screen
@@ -109,15 +114,27 @@ export const messages: Messages = {
   "dashboard.wait": "انتظار",
   "dashboard.today": "اليوم",
   "dashboard.runTypeAria": "نوع الرحلة",
-  "dashboard.searchAria": "بحث عن الطلاب",
-  "dashboard.searchPlaceholder": "ابحث عن طالب أو ولي أمر أو حافلة...",
   "dashboard.export": "تصدير CSV / PDF",
   "dashboard.selectDate": "اختر تاريخاً",
+  "dashboard.prevMonth": "الشهر السابق",
+  "dashboard.nextMonth": "الشهر التالي",
   "dashboard.liveUnavailable": "البيانات الحية غير متاحة — سجّل الدخول للمتابعة.",
   "dashboard.notificationsAria": "الإشعارات",
   "dashboard.helpAria": "المساعدة",
   "dashboard.settingsAria": "الإعدادات",
   "dashboard.noContactNumber": "لا يوجد رقم اتصال مسجل",
+
+  // Student list (dashboard) — search, filters, and pagination
+  "studentList.searchAria": "بحث عن الطلاب",
+  "studentList.searchPlaceholder": "ابحث عن اسم الطالب…",
+  "studentList.statusAria": "تصفية حسب الحالة",
+  "studentList.gradeAria": "تصفية حسب الصف",
+  "studentList.allGrades": "كل الصفوف",
+  "studentList.clear": "مسح التصفية",
+  "studentList.showing": "عرض {start}–{end} من {total}",
+  "studentList.previousAria": "الصفحة السابقة",
+  "studentList.nextAria": "الصفحة التالية",
+  "studentList.pageAria": "الصفحة {page} من {pages}",
 
   // KPI cards
   "kpi.total.label": "إجمالي المخصصين",
@@ -211,6 +228,7 @@ export const messages: Messages = {
   "analytics.trendEmpty": "لا توجد بيانات حضور في هذا النطاق",
   "analytics.rangeTooLong": "النطاق الزمني طويل جداً — الحد الأقصى ٣١ يوماً",
   "analytics.rangeInvalid": "يجب أن يكون تاريخ البداية قبل تاريخ النهاية",
+  "analytics.roster": "سجل الطلاب",
   "analytics.emptyTitle": "لا توجد بيانات حضور",
   "analytics.emptySubtitle": "لا توجد سجلات لهذا التاريخ ونوع الرحلة بعد.",
 
@@ -226,6 +244,28 @@ export const messages: Messages = {
   "reports.emptyTitle": "لا توجد بيانات حضور",
   "reports.emptySubtitle": "لا توجد سجلات لهذا التاريخ ونوع الرحلة بعد.",
 
+  // Assignments (director — driver ↔ bus, student ↔ bus)
+  "assignments.title": "التعيينات",
+  "assignments.subtitle": "تعيين السائقين والطلاب للحافلات",
+  "assignments.drivers": "السائقون",
+  "assignments.th.bus": "الحافلة",
+  "assignments.th.driver": "السائق المعيّن",
+  "assignments.th.assignedStudents": "الطلاب المعيّنون",
+  "assignments.unassigned": "—",
+  "assignments.students": "الطلاب",
+  "assignments.th.studentName": "اسم الطالب",
+  "assignments.th.grade": "الصف",
+  "assignments.th.currentBus": "الحافلة الحالية",
+  "assignments.noBus": "لا توجد حافلة",
+  "assignments.studentsEmpty": "لا يوجد طلاب",
+  "assignments.studentsEmptyHint": "عدّل البحث أو حمّل المزيد من الطلاب.",
+  "assignments.loadingStudents": "جارٍ تحميل الطلاب…",
+  "assignments.loadMore": "تحميل المزيد",
+  "assignments.driverAssigned": "تم تعيين السائق",
+  "assignments.driverCleared": "تم إلغاء تعيين السائق",
+  "assignments.studentMoved": "تم تحديث حافلة الطالب",
+
   // Common
   "common.changeLanguageAria": "تغيير اللغة",
+  "common.loading": "جارٍ التحميل",
 };

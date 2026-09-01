@@ -78,6 +78,19 @@ export default function Home() {
           <div role="status" aria-label={t("mobile.loading")}>
             <RosterSkeleton />
           </div>
+        ) : runMeta.busId === "" ? (
+          // Staff account not linked to any bus — nothing to operate on.
+          <div className="flex flex-col items-center justify-center gap-4 px-6 py-16 text-center">
+            <Icon
+              name="directions_bus_off"
+              size={40}
+              className="text-on-surface-variant"
+            />
+            <h2 className="text-headline-md">{t("mobile.noBusTitle")}</h2>
+            <p className="max-w-sm text-body-md text-on-surface-variant">
+              {t("mobile.noBusBody")}
+            </p>
+          </div>
         ) : (
           <>
             <StatusChips counts={counts} />
@@ -93,7 +106,9 @@ export default function Home() {
           </>
         )}
       </main>
-      <BottomBar completed={completed} onComplete={completeRun} />
+      {runMeta.busId !== "" && (
+        <BottomBar completed={completed} onComplete={completeRun} />
+      )}
 
       <StudentHistorySheet
         studentName={historyStudent}

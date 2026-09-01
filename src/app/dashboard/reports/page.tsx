@@ -3,13 +3,14 @@
 import { useMemo, useState } from "react";
 import type { RunSegmentId } from "@/data/dashboard";
 import { summarizeByBus, summarizeByGrade, useDashboardData, todayDateStr } from "@/lib/school-data";
+import { useStudentList } from "@/lib/use-student-list";
 import { buildAttendanceCsv, downloadCsv } from "@/lib/csv";
-import { AttendanceTable } from "@/components/dashboard/AttendanceTable";
 import { ReportsSkeleton } from "@/components/dashboard/DashboardSkeletons";
 import { DateSegmentBar } from "@/components/dashboard/DateSegmentBar";
 import { Icon } from "@/components/Icon";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { StudentHistorySheet } from "@/components/StudentHistorySheet";
+import { StudentList } from "@/components/dashboard/StudentList";
 import { useToast } from "@/components/Toast";
 import { useLocale } from "@/lib/i18n/context";
 import { toLocaleDigits, translateDataLabel } from "@/lib/i18n/format";
@@ -31,13 +32,14 @@ export default function ReportsPage() {
   );
   const byBus = useMemo(() => summarizeByBus(rows), [rows]);
   const byGrade = useMemo(() => summarizeByGrade(rows), [rows]);
+  const list = useStudentList(rows);
 
   function handleExport() {
     const dateStr = date ?? todayDateStr();
-    downloadCsv(`report-${dateStr}.csv`, buildAttendanceCsv(rows, t, locale));
+    downloadCsv(`report-${dateStr}.csv`, buildAttendanceCsv(list.filtered, t, locale));
     showToast(
       t("toast.exported", {
-        count: toLocaleDigits(String(rows.length), locale),
+        count: toLocaleDigits(String(list.filtered.length), locale),
       }),
     );
   }
@@ -207,7 +209,7 @@ export default function ReportsPage() {
                 <Icon name="history_edu" size={18} variant="outlined" />
                 {t("reports.roster")}
               </h2>
-              <AttendanceTable rows={rows} onViewHistory={setHistoryStudent} />
+              <StudentList list={list} onViewHistory={setHistoryStudent} />
             </section>
           </>
         )}

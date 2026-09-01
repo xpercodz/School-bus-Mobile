@@ -16,7 +16,8 @@ import { useToast } from "@/components/Toast";
 import { RUN_SEGMENTS, type RunSegmentId } from "@/data/dashboard";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
-import { buildRunId, fetchSchoolId, todayDateStr } from "@/lib/school-data";
+import { buildRunId, todayDateStr } from "@/lib/school-data";
+import { fetchSchoolId } from "@/lib/school-id";
 import { useLocale } from "@/lib/i18n/context";
 import { translateDataLabel } from "@/lib/i18n/format";
 

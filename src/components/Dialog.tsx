@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 type Placement = "center" | "bottom" | "end";
 
@@ -36,11 +37,12 @@ let nextDialogId = 0;
 
 /**
  * Accessible overlay primitive used by every modal/drawer/sheet in the app.
- * Renders a fixed backdrop + panel; the body is scroll-locked while open,
- * focus moves into the panel and is trapped (Tab cycles within it), and Escape
- * / backdrop click close the *topmost* open dialog (unless non-dismissable).
- * Uses the mobile (default) palette so it renders identically on both sections;
- * RTL-safe via logical utilities.
+ * Renders a fixed backdrop + panel that open with a quick fade and close
+ * instantly; the body is scroll-locked while open, focus moves into the
+ * panel and is trapped (Tab cycles within it), and Escape / backdrop click
+ * close the *topmost* open dialog (unless non-dismissable). Uses the mobile
+ * (default) palette so it renders identically on both sections; RTL-safe via
+ * logical utilities.
  */
 export function Dialog({
   open,
@@ -111,11 +113,16 @@ export function Dialog({
 
   if (!open) return null;
 
-  return (
-    <div className={`fixed inset-0 z-[80] flex overflow-y-auto ${WRAPPER_CLASS[placement]}`}>
+  // Rendered through a portal to <body> so the overlay escapes any parent
+  // stacking context (e.g. the sticky z-10 top bar or the z-20 sidebar) and
+  // truly sits at z-80 above everything, dimming the whole screen behind the
+  // panel. Safe for SSR: `open` is always false on the server.
+  // Everything just fades in — no sliding.
+  return createPortal(
+    <div className={`fixed inset-0 z-[80] flex overflow-y-auto overflow-x-hidden ${WRAPPER_CLASS[placement]}`}>
       <div
         aria-hidden="true"
-        className={`fixed inset-0 bg-black/40 ${dismissable ? "cursor-pointer" : ""}`}
+        className={`fixed inset-0 bg-black/40 dlg-fade-in ${dismissable ? "cursor-pointer" : ""}`}
         onClick={dismissable ? onClose : undefined}
       />
       <div
@@ -124,10 +131,11 @@ export function Dialog({
         aria-modal="true"
         aria-label={title ?? undefined}
         tabIndex={-1}
-        className={`relative flex max-h-full flex-col overflow-y-auto bg-surface-container-low shadow-card outline-none ${PANEL_CLASS[placement]}`}
+        className={`relative flex max-h-full flex-col overflow-hidden bg-surface-container-low shadow-card outline-none dlg-fade-in ${PANEL_CLASS[placement]}`}
       >
-        {children}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

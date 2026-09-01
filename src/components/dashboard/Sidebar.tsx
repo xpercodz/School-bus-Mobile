@@ -15,6 +15,7 @@ const NAV_LABEL_KEY: Record<string, MessageKey> = {
   routes: "nav.routes",
   analytics: "nav.analytics",
   reports: "nav.reports",
+  assignments: "nav.assignments",
 };
 
 interface SidebarProps {

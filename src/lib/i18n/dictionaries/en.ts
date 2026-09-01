@@ -29,7 +29,8 @@ export const messages = {
 
   // Mobile roster screen
   "mobile.loading": "Loading roster…",
-  "mobile.appBarTitle": "Bus #04 • Morning Run",
+  "mobile.appBarTitle": "Bus #{bus} • Morning Run",
+  "mobile.appBarTitleNoBus": "Morning Run",
   "mobile.moreOptionsAria": "More options",
   "mobile.moreOptionsForAria": "More options for {name}",
   "mobile.searchAria": "Search students",
@@ -44,6 +45,9 @@ export const messages = {
   "mobile.signInPromptBody":
     "The roster loads from your school's live data after you sign in.",
   "mobile.signInAction": "Sign in",
+  "mobile.noBusTitle": "No bus assigned",
+  "mobile.noBusBody":
+    "Your account isn't linked to a bus yet. Ask your school director to assign you one.",
 
   // Roster filter tabs
   "tabs.filterAria": "Filter students by status",
@@ -75,6 +79,7 @@ export const messages = {
   "nav.routes": "Routes",
   "nav.analytics": "Analytics",
   "nav.reports": "Reports",
+  "nav.assignments": "Assignments",
   "nav.dispatch": "Dispatch Vehicle",
 
   // Dashboard screen
@@ -107,15 +112,27 @@ export const messages = {
   "dashboard.wait": "Wait",
   "dashboard.today": "Today",
   "dashboard.runTypeAria": "Run type",
-  "dashboard.searchAria": "Search students",
-  "dashboard.searchPlaceholder": "Search student, guardian, or bus...",
   "dashboard.export": "Export CSV / PDF",
   "dashboard.selectDate": "Select a date",
+  "dashboard.prevMonth": "Previous month",
+  "dashboard.nextMonth": "Next month",
   "dashboard.liveUnavailable": "Live data unavailable — sign in to continue.",
   "dashboard.notificationsAria": "Notifications",
   "dashboard.helpAria": "Help",
   "dashboard.settingsAria": "Settings",
   "dashboard.noContactNumber": "No contact number on file",
+
+  // Student list (dashboard) — search, filters, and pagination
+  "studentList.searchAria": "Search students",
+  "studentList.searchPlaceholder": "Search student name…",
+  "studentList.statusAria": "Filter by status",
+  "studentList.gradeAria": "Filter by grade",
+  "studentList.allGrades": "All grades",
+  "studentList.clear": "Clear filters",
+  "studentList.showing": "Showing {start}–{end} of {total}",
+  "studentList.previousAria": "Previous page",
+  "studentList.nextAria": "Next page",
+  "studentList.pageAria": "Page {page} of {pages}",
 
   // KPI cards
   "kpi.total.label": "Total Assigned",
@@ -209,6 +226,7 @@ export const messages = {
   "analytics.trendEmpty": "No attendance data in this range",
   "analytics.rangeTooLong": "The date range is too long — maximum 31 days",
   "analytics.rangeInvalid": "Start date must be before end date",
+  "analytics.roster": "Student Roster",
   "analytics.emptyTitle": "No attendance data",
   "analytics.emptySubtitle": "No records exist for this date and run segment yet.",
 
@@ -224,8 +242,30 @@ export const messages = {
   "reports.emptyTitle": "No attendance data",
   "reports.emptySubtitle": "No records exist for this date and run segment yet.",
 
+  // Assignments (director — driver ↔ bus, student ↔ bus)
+  "assignments.title": "Assignments",
+  "assignments.subtitle": "Assign drivers and students to buses",
+  "assignments.drivers": "Drivers",
+  "assignments.th.bus": "Bus",
+  "assignments.th.driver": "Assigned Driver",
+  "assignments.th.assignedStudents": "Assigned Students",
+  "assignments.unassigned": "—",
+  "assignments.students": "Students",
+  "assignments.th.studentName": "Student Name",
+  "assignments.th.grade": "Grade",
+  "assignments.th.currentBus": "Current Bus",
+  "assignments.noBus": "No bus",
+  "assignments.studentsEmpty": "No students found",
+  "assignments.studentsEmptyHint": "Adjust your search or load more students.",
+  "assignments.loadingStudents": "Loading students…",
+  "assignments.loadMore": "Load more",
+  "assignments.driverAssigned": "Driver assigned",
+  "assignments.driverCleared": "Driver unassigned",
+  "assignments.studentMoved": "Student bus updated",
+
   // Common
   "common.changeLanguageAria": "Change language",
+  "common.loading": "Loading",
 };
 
 /** Key set is the object's keys; every value is a plain string. */

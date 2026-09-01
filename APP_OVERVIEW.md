@@ -24,10 +24,11 @@ repo — keep it accurate as the project evolves.
 ## Routing
 
 ```
-/                      (mobile) group  — phone-column roster (Bus #04 • Morning Run)
+/                      (mobile) group  — phone-column roster (per-driver morning run)
 /dashboard             dashboard/      — director "School Transit Live Monitor"
 /dashboard/analytics   dashboard/      — attendance statistics + multi-day trend
 /dashboard/reports     dashboard/      — printable attendance summary (CSV + print)
+/dashboard/assignments dashboard/      — director-only driver↔bus and student↔bus links
 /login                 login/          — email/password sign-in
 ```
 
@@ -46,28 +47,41 @@ signed-in school's name (`src/lib/school.ts`), so each tenant sees their own.
 - Dashboard is **desktop-only by design** (fixed `w-64` sidebar); not responsive
   below tablet. Known limitation, matches the design.
 - Sidebar nav: **Live Map** (`/dashboard`), **Analytics** (`/dashboard/analytics`),
-  and **Reports** (`/dashboard/reports`) are real routes; the active pill follows
-  the path. **Fleet Status** is intentionally inert (the fleet grid already lives
-  on the Live Map) and **Routes** isn't built yet.
+  **Reports** (`/dashboard/reports`), and **Assignments** (`/dashboard/assignments`)
+  are real routes; the active pill follows the path. **Fleet Status** is
+  intentionally inert (the fleet grid already lives on the Live Map) and
+  **Routes** isn't built yet.
 - **Analytics** — KPI cards, per-bus boarded/absent rate bars, per-grade
-  breakdown, and a multi-day attendance trend (`useAttendanceTrend`: paginated
-  date-range query on `attendance.date`, CSS stacked-bar chart, default last 7
-  days, capped at 31).
+  breakdown, a **Student Roster** (same paginated/searchable/filterable list as
+  the other pages), and a multi-day attendance trend (`useAttendanceTrend`:
+  paginated date-range query on `attendance.date`, CSS stacked-bar chart,
+  default last 7 days, capped at 31).
 - **Reports** — overview KPIs, by-bus and by-grade summary tables, the full
-  roster, **Export CSV** (reuses `src/lib/csv.ts`), and **Print** (the sidebar +
-  top bar are hidden on print via `print:` variants).
+  roster (paginated/searchable/filterable like the Live Map table), **Export
+  CSV** (reuses `src/lib/csv.ts`; exports the currently filtered rows), and
+  **Print** (the sidebar + top bar are hidden on print via `print:` variants).
+- **Assignments** — director-only driver↔bus and student↔bus assignment. The
+  Drivers table links a staff user to each bus (one driver per bus; the write
+  keeps the denormalized `driver` name in sync and clears the driver's previous
+  bus atomically). The Students table is cursor-paginated (via
+  `src/lib/school-admin.ts`) with a client-side name search and a per-row bus
+  `<select>`.
 
-## Mobile screen (Bus #04 • Morning Run)
+## Mobile screen (per-driver morning run)
 
 Faithful to the Stitch design: attendance roster with status summary chips,
 student search, segmented filter tabs (All / Waiting / Boarded / Done), roster
-cards per status, and a bottom bar. The roster is **live-only** — it reads the
-school's current run from Firestore and tapping a student's status pill writes
-the new status back; signed out, the screen shows a sign-in prompt. The bottom
-bar's **Complete Run** marks the run `COMPLETED` and any `WAITING` students
-`ABSENT` in one atomic batch. Each card's "⋯" menu offers **View history** and
-**Mark absent**; the top-bar "⋯" menu shows run details (bus / type / date /
-status) and **Sign out**. See the git history for the original one-screen build.
+cards per status, and a bottom bar. The roster is **per-driver** — the app bar
+title and roster come from the signed-in user's bus (`buses where driverUid ==
+uid`, resolved by `useDriverBus`), so every staff account sees only its own
+bus. A staff user linked to no bus gets a friendly empty state instead of a
+roster. The roster is **live-only** — it reads the school's current run from
+Firestore and tapping a student's status pill writes the new status back;
+signed out, the screen shows a sign-in prompt. The bottom bar's **Complete
+Run** marks the run `COMPLETED` and any `WAITING` students `ABSENT` in one
+atomic batch. Each card's "⋯" menu offers **View history** and **Mark absent**;
+the top-bar "⋯" menu shows run details (bus / type / date / status) and **Sign
+out**. See the git history for the original one-screen build.
 
 ## Director dashboard (School Transit Live Monitor)
 
@@ -81,10 +95,15 @@ the rendered design). One screen: the Live Monitor.
 - **Live Student Attendance table** — student name, grade, bus #, morning
   boarded, drop-off time, status badge, actions. The **History** action opens a
   per-student attendance sheet; **Call** is disabled (no contact numbers on file).
+  The table is **paginated (10 rows/page)** with a per-list toolbar: student
+  name search, a grade dropdown, and status chips (All / Boarded / Waiting /
+  Dropped Off / Absent) — shared by the Live Map, Analytics roster, and Reports
+  roster via `useStudentList` + `StudentList` (`src/lib/use-student-list.ts`,
+  `src/components/dashboard/StudentList.tsx`).
 - **Filter bar** — date picker (re-queries the dashboard for a chosen day),
   Morning Pickup / Afternoon Drop-off segment control (filters the table, KPIs,
-  and fleet), student search (filters the table live), **Export CSV** (downloads
-  the current filtered rows).
+  and fleet), and **Export CSV** (downloads the current filtered rows — the
+  shared search/grade/status filters apply).
 - **Dispatch Vehicle** (sidebar) — creates a run for a chosen bus/type/date and
   pre-registers that bus's students as `WAITING`; refuses to clobber an existing
   run.
@@ -99,7 +118,7 @@ the rendered design). One screen: the Live Monitor.
 users/{uid}                          { role: "director"|"staff", schoolId, email }
 schools/{schoolId}                   { name }
 schools/{schoolId}/students/{id}     { name, grade, busId }
-schools/{schoolId}/buses/{id}        { name, driver }
+schools/{schoolId}/buses/{id}        { name, driver, driverUid? }
 schools/{schoolId}/runs/{id}         { busId, runType, date, status }
 schools/{schoolId}/attendance/{id}   { runId, date, busId, busName, studentName,
                                        grade, status, boardedAt, droppedOffAt }
@@ -111,6 +130,11 @@ schools/{schoolId}/attendance/{id}   { runId, date, busId, busName, studentName,
   run+student) so both views are single-query realtime reads:
   mobile reads `where runId == X`, dashboard reads `where date == today`.
 - Run ids are deterministic: `${busId}-${yyyy-mm-dd}-${runType}`.
+- **Driver↔bus link lives on the bus** (`buses/{id}.driverUid` — the staff
+  `users/{uid}` who drives it); `driver` is a denormalized display copy kept in
+  sync on assignment. Buses are already director-writable in the rules, so
+  assigning needs no rules changes. One driver per bus (enforced client-side in
+  Assignments).
 - The per-student history query (`attendance` where `studentName` + order by
   `date`, `runId`) needs the composite index declared in `firestore.indexes.json`
   (deploy with `firebase deploy --only firestore:indexes`).
@@ -120,19 +144,30 @@ schools/{schoolId}/attendance/{id}   { runId, date, busId, busName, studentName,
 - `src/data/students.ts` + `src/data/dashboard.ts` — types + presentation
   config only (statuses, tabs, KPI ids, nav, run segments). No data lives here.
 - `src/lib/school-data.ts` — `useRunRoster()` (mobile roster + status writes +
-  `completeRun` / `markAbsent`), `useDashboardData(date, segment)` (KPIs / fleet
-  / attendance, filtered by run segment and re-queried by date),
-  `useStudentHistory()` (paginated per-student history), and
-  `useAttendanceTrend(start, end, segment)` (paginated date-range daily totals)
-  with `summarizeByBus` / `summarizeByGrade` helpers. All `onSnapshot` /
-  paginated Firestore — nothing renders without a live session.
+  `completeRun` / `markAbsent`; resolves the signed-in user's bus via an internal
+  `useDriverBus`), `useDashboardData(date, segment)` (KPIs / fleet / attendance,
+  filtered by run segment and re-queried by date), `useStudentHistory()`
+  (paginated per-student history), and `useAttendanceTrend(start, end, segment)`
+  (paginated date-range daily totals) with `summarizeByBus` / `summarizeByGrade`
+  helpers. All `onSnapshot` / paginated Firestore — nothing renders without a
+  live session.
+- `src/lib/school-admin.ts` — director-only Assignments data: `useBuses()`
+  (realtime, exposes `driverUid`), `useStaffUsers()` (the school's staff),
+  `useStudentsPaginated()` (cursor-paginated + client-side search),
+  `useBusStudentCounts()` (server-side per-bus counts), and the
+  `assignDriverToBus` / `assignStudentToBus` write helpers.
+- `src/lib/use-student-list.ts` — `useStudentList(rows)` — client-side search
+  (name) + grade + status filters and table-view pagination (10/page) over an
+  already-loaded row set. Powers the shared `StudentList` component used by the
+  Live Map, Analytics roster, and Reports roster.
 - `src/lib/csv.ts` — attendance CSV export (`buildAttendanceCsv` / `downloadCsv`).
 - `scripts/clear-data.mjs` — wipes the seeded demo data (schools subtree; pass
   `--users` to also remove the demo accounts).
 - `scripts/seed.mjs` — one-time bootstrap (Admin SDK): creates a **director**
-  and a **staff** (bus monitor) user + profiles, a demo school, 4 buses, 32
-  students, and today's morning runs with attendance. Idempotent — safe to
-  re-run. Env-overridable (`DIRECTOR_*`, `STAFF_*`, `SCHOOL_ID`).
+  and two **staff** (bus monitor/driver) users + profiles (linked to bus04 and
+  bus01 via `buses.driverUid`), a demo school, 4 buses, 32 students, and
+  today's morning runs with attendance. Idempotent — safe to re-run.
+  Env-overridable (`DIRECTOR_*`, `STAFF_*`, `MONITOR2_*`, `SCHOOL_ID`).
 
 ## Internationalization
 

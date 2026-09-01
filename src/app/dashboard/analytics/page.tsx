@@ -9,10 +9,13 @@ import {
   useDashboardData,
 } from "@/lib/school-data";
 import type { TrendDay } from "@/lib/school-data";
+import { useStudentList } from "@/lib/use-student-list";
 import { AnalyticsSkeleton } from "@/components/dashboard/DashboardSkeletons";
 import { DateSegmentBar } from "@/components/dashboard/DateSegmentBar";
 import { Icon } from "@/components/Icon";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { StudentHistorySheet } from "@/components/StudentHistorySheet";
+import { StudentList } from "@/components/dashboard/StudentList";
 import { useLocale } from "@/lib/i18n/context";
 import {
   formatDate,
@@ -86,6 +89,7 @@ export default function AnalyticsPage() {
   const [segment, setSegment] = useState<RunSegmentId>("morning");
   const [trendStart, setTrendStart] = useState<string | null>(null);
   const [trendEnd, setTrendEnd] = useState<string | null>(null);
+  const [historyStudent, setHistoryStudent] = useState<string | null>(null);
 
   const { kpis, attendance, loading, live } = useDashboardData(date, segment);
 
@@ -95,6 +99,7 @@ export default function AnalyticsPage() {
   );
   const byBus = useMemo(() => summarizeByBus(rows), [rows]);
   const byGrade = useMemo(() => summarizeByGrade(rows), [rows]);
+  const list = useStudentList(rows);
 
   // Trend range validation — only query when the range is sane.
   const rangeInvalid = Boolean(trendStart && trendEnd && trendStart > trendEnd);
@@ -242,6 +247,12 @@ export default function AnalyticsPage() {
               </div>
             </section>
 
+            {/* Student roster — paginated + searchable + filterable */}
+            <section className="flex flex-col gap-4">
+              {sectionTitle("history_edu", t("analytics.roster"))}
+              <StudentList list={list} onViewHistory={setHistoryStudent} />
+            </section>
+
             {/* Multi-day trend */}
             <section className="flex flex-col gap-4">
               {sectionTitle("monitoring", t("analytics.trendTitle"))}
@@ -313,6 +324,11 @@ export default function AnalyticsPage() {
           </>
         )}
       </div>
+
+      <StudentHistorySheet
+        studentName={historyStudent}
+        onClose={() => setHistoryStudent(null)}
+      />
     </>
   );
 }
