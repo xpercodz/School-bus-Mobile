@@ -4,8 +4,14 @@ rules_version = '2';
 //
 // Access model: every user has a `users/{uid}` profile with `role`
 // ("director" | "staff") and `schoolId`. Directors administer their school's
-// students/buses; staff operate runs (bus monitors). All data is scoped under
-// `schools/{schoolId}`, so one school can never read another's data.
+// students/buses/driver-codes; staff operate runs (bus monitors). All data is
+// scoped under `schools/{schoolId}`, so one school can never read another's
+// data.
+//
+// Driver access codes live in `schools/{schoolId}/driverCodes/{driverUid}`,
+// readable/writable ONLY by that school's director — a driver must not read a
+// colleague's code. Code verification (login) is server-side via the Admin SDK,
+// which bypasses these rules.
 //
 // The first director + seed data are created by scripts/seed.mjs (Admin SDK,
 // bypasses rules). Anyone authenticated but without a profile is denied.
@@ -41,13 +47,16 @@ service cloud.firestore {
     }
 
     // ── users ──────────────────────────────────────────────────────────────
-    // Anyone can read profiles. A user may create their own profile and update
-    // their own ONLY if role/schoolId are unchanged — otherwise an attacker
-    // could self-promote to director or switch tenants (role/schoolId are the
-    // authorization gates everywhere below). Client code never writes
-    // users/{uid}; profiles come from scripts/seed.mjs (Admin SDK).
+    // A user may read their own profile; a director may additionally read any
+    // profile of their own school (for the staff list). Everyone else is denied
+    // — so a staff user can never read another user's profile. A user may create
+    // their own profile and update their own ONLY if role/schoolId are unchanged
+    // — otherwise an attacker could self-promote to director or switch tenants
+    // (role/schoolId are the authorization gates everywhere below). Client code
+    // never writes users/{uid}; profiles come from Admin SDK code (seed + routes).
     match /users/{uid} {
-      allow read: if isSignedIn();
+      allow read: if request.auth.uid == uid
+        || (isDirector() && resource.data.schoolId == schoolId());
       allow create: if request.auth.uid == uid;
       allow update: if request.auth.uid == uid
         && request.resource.data.role == resource.data.role
@@ -69,6 +78,13 @@ service cloud.firestore {
       match /buses/{busId} {
         allow read: if isMySchool(schoolId);
         allow write: if isMySchool(schoolId) && isDirector();
+      }
+
+      // Driver access codes — one doc per driver, director-only. The verify
+      // route reads these via the Admin SDK (bypasses rules); the director's
+      // client reads/writes them to show, copy, and regenerate codes.
+      match /driverCodes/{driverUid} {
+        allow read, write: if isMySchool(schoolId) && isDirector();
       }
 
       // Runs hold run metadata (bus, type, date, status).

@@ -25,6 +25,7 @@
 import { initializeApp, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { randomInt } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 
@@ -144,6 +145,20 @@ async function seed() {
   const auth = getAuth(app);
   const dateStr = todayDateStr();
 
+  /** A 6-digit code not already assigned to any driver in any school. */
+  async function uniqueCode() {
+    for (let i = 0; i < 20; i++) {
+      const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+      const hit = await db
+        .collectionGroup("driverCodes")
+        .where("code", "==", code)
+        .limit(1)
+        .get();
+      if (hit.empty) return code;
+    }
+    throw new Error("Couldn't allocate a unique driver code");
+  }
+
   // 1. Director + staff (bus monitor/driver) Auth users + profiles
   async function ensureUser(email, password, displayName) {
     try {
@@ -188,6 +203,14 @@ async function seed() {
       { merge: true },
     );
   console.log(`+ users/${monitor2.uid} (role=staff, schoolId=${SCHOOL_ID})`);
+
+  // Driver access codes — the staff sign in on mobile by typing these.
+  const staffCode = await uniqueCode();
+  await db.doc(`schools/${SCHOOL_ID}/driverCodes/${staff.uid}`).set({ code: staffCode });
+  console.log(`+ schools/${SCHOOL_ID}/driverCodes/${staff.uid} (code ${staffCode})`);
+  const monitor2Code = await uniqueCode();
+  await db.doc(`schools/${SCHOOL_ID}/driverCodes/${monitor2.uid}`).set({ code: monitor2Code });
+  console.log(`+ schools/${SCHOOL_ID}/driverCodes/${monitor2.uid} (code ${monitor2Code})`);
 
   // 2. School
   await db.doc(`schools/${SCHOOL_ID}`).set(
@@ -253,8 +276,8 @@ async function seed() {
 
   console.log("\nSeed complete.");
   console.log(`Director login: ${DIRECTOR_EMAIL} / ${DIRECTOR_PASSWORD}  (→ /dashboard)`);
-  console.log(`Staff login:    ${STAFF_EMAIL} / ${STAFF_PASSWORD}  (→ /, Bus 04)`);
-  console.log(`Staff 2 login:  ${MONITOR2_EMAIL} / ${MONITOR2_PASSWORD}  (→ /, Bus 01)`);
+  console.log(`Staff login:    ${STAFF_EMAIL} / ${STAFF_PASSWORD}  |  code ${staffCode}  (→ /, Bus 04)`);
+  console.log(`Staff 2 login:  ${MONITOR2_EMAIL} / ${MONITOR2_PASSWORD}  |  code ${monitor2Code}  (→ /, Bus 01)`);
   process.exit(0);
 }
 

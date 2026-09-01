@@ -193,3 +193,19 @@ export function AssignmentsSkeleton() {
     </div>
   );
 }
+
+/** Drivers loading state: an add-driver form card + an access-codes table skeleton. */
+export function DriversSkeleton() {
+  return (
+    <div className="flex flex-col gap-6">
+      <SkeletonText className="h-4 w-40" />
+      <div className="rounded border border-dash-outline-variant bg-dash-surface p-4">
+        <SkeletonText className="h-3.5 w-24" />
+        <Skeleton className="mt-3 h-10 w-full rounded" />
+        <Skeleton className="mt-3 h-10 w-44 rounded-full" />
+      </div>
+      <SkeletonText className="h-4 w-40" />
+      <SkeletonTable widths={["w-40", "w-24", "w-40"]} rows={4} />
+    </div>
+  );
+}

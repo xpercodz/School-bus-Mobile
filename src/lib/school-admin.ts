@@ -14,7 +14,7 @@ import {
   writeBatch,
   type DocumentSnapshot,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { fetchSchoolId } from "@/lib/school-id";
 import { useCursorPage } from "@/lib/use-cursor-page";
@@ -142,6 +142,46 @@ export function useStaffUsers(): StaffUser[] {
   }, [uid]);
 
   return staff;
+}
+
+/**
+ * Realtime driver access codes of the school — `schools/{schoolId}/driverCodes`,
+ * mapped `{ [driverUid]: code }`. Director-only per rules (drivers must not read
+ * each other's codes). Small reference data (one doc per staff account), so no
+ * pagination.
+ */
+export function useDriverCodes(): Record<string, string> {
+  const { user } = useAuth();
+  const uid = user?.uid;
+  const [codes, setCodes] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!uid || !db) return;
+    const firestore = db;
+    let cancelled = false;
+    const unsubscribers: (() => void)[] = [];
+
+    void fetchSchoolId(uid).then((schoolId) => {
+      if (cancelled || !schoolId) return;
+      unsubscribers.push(
+        onSnapshot(collection(firestore, "schools", schoolId, "driverCodes"), (snap) => {
+          if (cancelled) return;
+          const next: Record<string, string> = {};
+          snap.docs.forEach((d) => {
+            next[d.id] = (d.data().code as string) ?? "";
+          });
+          setCodes(next);
+        }),
+      );
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribers.forEach((u) => u());
+    };
+  }, [uid]);
+
+  return codes;
 }
 
 export interface AdminStudent {
@@ -286,4 +326,48 @@ export async function assignStudentToBus(
   const schoolId = await fetchSchoolId(uid);
   if (!schoolId) return;
   await setDoc(doc(db, "schools", schoolId, "students", studentId), { busId }, { merge: true });
+}
+
+/** Bearer token for the signed-in director calling the driver API routes. */
+async function currentIdToken(): Promise<string> {
+  const current = auth?.currentUser;
+  if (!current) throw new Error("Not signed in");
+  return current.getIdToken();
+}
+
+/**
+ * Create a driver account and return its uid + auto-generated access code. Goes
+ * through the server route (Admin SDK) — the client SDK can't create Auth users
+ * and `users` profiles are rule-denied to clients.
+ */
+export async function createDriver(name: string): Promise<{ uid: string; code: string }> {
+  const token = await currentIdToken();
+  const res = await fetch("/api/drivers", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw new Error("Failed to create driver");
+  return (await res.json()) as { uid: string; code: string };
+}
+
+/**
+ * Rotate a driver's access code (or issue a first one to a staff account that
+ * has none). Server-side so global code uniqueness is enforced.
+ */
+export async function regenerateDriverCode(uid: string): Promise<string> {
+  const token = await currentIdToken();
+  const res = await fetch("/api/drivers/regenerate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ uid }),
+  });
+  if (!res.ok) throw new Error("Failed to regenerate code");
+  return ((await res.json()) as { code: string }).code;
 }

@@ -54,7 +54,7 @@ export default function ReportsPage() {
   return (
     <>
       {/* Interactive header (hidden when printing). */}
-      <div className="border-b border-dash-outline-variant bg-dash-surface-container-low px-6 py-3 print:hidden">
+      <div className="border-b border-dash-outline-variant bg-dash-surface-container-low px-4 py-3 sm:px-6 print:hidden">
         <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-dash-headline-lg text-dash-on-surface">{t("reports.title")}</h1>
@@ -87,7 +87,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 p-6 print:max-w-none print:p-0">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 p-4 sm:p-6 print:max-w-none print:p-0">
         {!live && (
           <div role="status" className="flex items-center gap-2 text-dash-body-sm text-dash-on-surface-variant">
             <Icon name="info" size={16} variant="outlined" />

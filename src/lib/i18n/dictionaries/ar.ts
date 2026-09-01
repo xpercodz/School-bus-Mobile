@@ -18,6 +18,14 @@ export const messages: Messages = {
   // Login screen
   "login.heading": "النقل المدرسي",
   "login.subtitle": "سجّل الدخول للمتابعة",
+  "login.driverTab": "رمز السائق",
+  "login.directorTab": "المدير",
+  "login.modeAria": "اختر طريقة تسجيل الدخول",
+  "login.code": "رمز الوصول",
+  "login.codePlaceholder": "٠٠٠٠٠٠",
+  "login.codeError": "هذا الرمز غير صحيح. تحقق منه وحاول مرة أخرى.",
+  "login.codeLocked": "محاولات كثيرة. حاول مرة أخرى بعد {minutes} دقيقة.",
+  "login.driverHint": "اطلب من مدير المدرسة رمز الوصول المكوّن من ٦ أرقام.",
   "login.email": "البريد الإلكتروني",
   "login.password": "كلمة المرور",
   "login.emailPlaceholder": "you@school.edu",
@@ -82,6 +90,7 @@ export const messages: Messages = {
   "nav.analytics": "التحليلات",
   "nav.reports": "التقارير",
   "nav.assignments": "التعيينات",
+  "nav.drivers": "السائقون",
   "nav.dispatch": "إرسال حافلة",
 
   // Dashboard screen
@@ -123,6 +132,8 @@ export const messages: Messages = {
   "dashboard.helpAria": "المساعدة",
   "dashboard.settingsAria": "الإعدادات",
   "dashboard.noContactNumber": "لا يوجد رقم اتصال مسجل",
+  "dashboard.openNavAria": "فتح قائمة التنقل",
+  "dashboard.closeNavAria": "إغلاق قائمة التنقل",
 
   // Student list (dashboard) — search, filters, and pagination
   "studentList.searchAria": "بحث عن الطلاب",
@@ -264,6 +275,36 @@ export const messages: Messages = {
   "assignments.driverAssigned": "تم تعيين السائق",
   "assignments.driverCleared": "تم إلغاء تعيين السائق",
   "assignments.studentMoved": "تم تحديث حافلة الطالب",
+
+  // Drivers (director — driver accounts + access codes)
+  "drivers.title": "السائقون",
+  "drivers.subtitle": "إنشاء حسابات السائقين وإدارة رموز الوصول",
+  "drivers.addTitle": "إضافة سائق",
+  "drivers.nameLabel": "اسم السائق",
+  "drivers.namePlaceholder": "مثال: ريتا باتل",
+  "drivers.create": "إنشاء وتوليد رمز",
+  "drivers.accessCodes": "رموز الوصول",
+  "drivers.th.name": "السائق",
+  "drivers.th.bus": "الحافلة",
+  "drivers.th.code": "رمز الوصول",
+  "drivers.noBus": "غير معيّن",
+  "drivers.generateCode": "توليد رمز",
+  "drivers.revealAria": "إظهار رمز {name}",
+  "drivers.hideAria": "إخفاء رمز {name}",
+  "drivers.copyAria": "نسخ رمز {name}",
+  "drivers.regenerateAria": "إعادة توليد رمز {name}",
+  "drivers.regenerateConfirmTitle": "إعادة توليد الرمز؟",
+  "drivers.regenerateConfirmBody":
+    "سيحصل {name} على رمز جديد. سيتوقف الرمز القديم عن العمل.",
+  "drivers.empty": "لا يوجد سائقون بعد",
+  "drivers.emptyHint": "أضف سائقاً لتوليد رمز الوصول الخاص به.",
+  "drivers.newCodeTitle": "تم إنشاء السائق",
+  "drivers.newCodeBody": "رمز الوصول لـ {name}:",
+  "drivers.copied": "تم نسخ الرمز",
+  "drivers.copyError": "تعذّر نسخ الرمز",
+  "drivers.createdToast": "تم إنشاء حساب السائق",
+  "drivers.regeneratedToast": "تم تحديث رمز الوصول",
+  "drivers.createError": "تعذّر إنشاء السائق. حاول مرة أخرى.",
 
   // Common
   "common.changeLanguageAria": "تغيير اللغة",

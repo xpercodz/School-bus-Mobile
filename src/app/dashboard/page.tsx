@@ -55,7 +55,7 @@ export default function DashboardPage() {
         onDateChange={setDate}
         onExport={handleExport}
       />
-      <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 p-6">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 p-4 sm:p-6">
         {!live && (
           <div role="status" className="flex items-center gap-2 text-dash-body-sm text-dash-on-surface-variant">
             <Icon name="info" size={16} variant="outlined" />

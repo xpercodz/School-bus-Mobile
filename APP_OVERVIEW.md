@@ -29,7 +29,8 @@ repo — keep it accurate as the project evolves.
 /dashboard/analytics   dashboard/      — attendance statistics + multi-day trend
 /dashboard/reports     dashboard/      — printable attendance summary (CSV + print)
 /dashboard/assignments dashboard/      — director-only driver↔bus and student↔bus links
-/login                 login/          — email/password sign-in
+/dashboard/drivers     dashboard/      — director-only driver accounts + access codes
+/login                 login/          — driver access code, or director email/password
 ```
 
 **Role-based access:** after login, `staff` (bus monitor/driver) lands on `/`,
@@ -38,14 +39,21 @@ role="director"` (`src/components/RequireRole.tsx`) — signed-out visitors go t
 `/login`, non-directors bounce back to `/`. The dashboard sidebar shows the
 signed-in school's name (`src/lib/school.ts`), so each tenant sees their own.
 
+**Two sign-in modes on `/login`:** a segmented toggle switches between **Driver
+code** (default — a 6-digit access code, see "Driver access codes" below) and
+**Director** (email/password, unchanged).
+
 - `src/app/(mobile)/layout.tsx` — the phone-column shell (`max-w-[480px]`);
   `(mobile)/page.tsx` is the attendance screen. URL stays `/`.
-- `src/app/dashboard/layout.tsx` — desktop shell: fixed `Sidebar` + sticky
+- `src/app/dashboard/layout.tsx` — responsive shell: `Sidebar` + sticky
   `TopBar`. `dashboard/page.tsx` is the Live Monitor screen.
 - `src/app/providers.tsx` wraps the tree in the auth provider (`src/lib/auth.tsx`).
 - One root layout (`src/app/layout.tsx`) provides fonts + icon CDN for both.
-- Dashboard is **desktop-only by design** (fixed `w-64` sidebar); not responsive
-  below tablet. Known limitation, matches the design.
+- Dashboard is **responsive**: the `w-64` sidebar is a fixed rail at `≥lg`
+  (1024px) and collapses into a hamburger + off-canvas drawer below it (the
+  drawer reuses the shared `Dialog` `placement="end"` pattern, so focus trap /
+  Escape / scroll-lock come for free). The top bar hides its brand text and
+  live-clock chip on narrow screens; wide tables keep horizontal scroll.
 - Sidebar nav: **Live Map** (`/dashboard`), **Analytics** (`/dashboard/analytics`),
   **Reports** (`/dashboard/reports`), and **Assignments** (`/dashboard/assignments`)
   are real routes; the active pill follows the path. **Fleet Status** is
@@ -110,6 +118,34 @@ the rendered design). One screen: the Live Monitor.
 - **Top bar** — Help dialog, Settings drawer (account, language, sign out).
   Notifications stays inert.
 
+## Driver access codes (staff sign-in)
+
+Bus drivers are typically in their 40s–50s with no valid email, so they sign in
+with a **6-digit numeric code** instead of email/password. Directors keep
+email/password and manage driver accounts from the **Drivers** page
+(`/dashboard/drivers`): create a driver by name → an auto-generated code is
+shown once (copyable), with per-row reveal / copy / regenerate, and "Generate
+code" for any staff account that has none.
+
+- **Mechanism:** the code is exchanged server-side for a **Firebase custom
+  token** (`POST /api/auth/verify-code` → Admin SDK collectionGroup lookup on
+  `driverCodes` → `createCustomToken`), then the client calls
+  `signInWithCustomToken`. The session stays a normal Firebase Auth session, so
+  `onAuthStateChanged`, `useUserProfile`, `RequireRole`, and the rules'
+  `request.auth.uid` gating all work unchanged.
+- **Creating drivers is server-side** (`POST /api/drivers`, director-only via a
+  verified Bearer ID token): `auth.createUser` with a placeholder
+  `{uuid}@drivers.invalid` email and no password, plus the staff profile and
+  code doc. Regeneration (`POST /api/drivers/regenerate`) is also server-side so
+  codes stay globally unique.
+- **Codes are director-only data** in `schools/{schoolId}/driverCodes/{driverUid}`
+  (rules deny staff), generated with a global-uniqueness re-query. The verify
+  route runs a uniform ~400ms delay on success/failure and a per-IP rate limit;
+  the login page adds a 5-attempt → 15-minute client lockout (localStorage).
+- **Server modules:** `src/lib/firebase-admin.ts` (Admin SDK singleton, same
+  credential resolution as `scripts/seed.mjs`) and `src/lib/driver-admin.ts`
+  (`requireDirector`, `generateUniqueCode`, `createDriver`, `rotateCode`).
+
 ## Data model
 
 ### Firestore schema (multi-school, tenant-isolated)
@@ -119,6 +155,7 @@ users/{uid}                          { role: "director"|"staff", schoolId, email
 schools/{schoolId}                   { name }
 schools/{schoolId}/students/{id}     { name, grade, busId }
 schools/{schoolId}/buses/{id}        { name, driver, driverUid? }
+schools/{schoolId}/driverCodes/{uid} { code }   // director-only; driver sign-in
 schools/{schoolId}/runs/{id}         { busId, runType, date, status }
 schools/{schoolId}/attendance/{id}   { runId, date, busId, busName, studentName,
                                        grade, status, boardedAt, droppedOffAt }
@@ -135,6 +172,15 @@ schools/{schoolId}/attendance/{id}   { runId, date, busId, busName, studentName,
   sync on assignment. Buses are already director-writable in the rules, so
   assigning needs no rules changes. One driver per bus (enforced client-side in
   Assignments).
+- **Driver access codes** live in `schools/{schoolId}/driverCodes/{driverUid}`,
+  readable/writable only by that school's director (rules). Code verification
+  (`/api/auth/verify-code`) queries them via Admin SDK `collectionGroup`, which
+  needs a **single-field collection-group index on `code`**. Single-field
+  collection-group indexes can't be deployed via `firestore.indexes.json`
+  (firebase CLI rejects them) — enable it once in the Firebase console:
+  Firestore → Indexes → Single Field → Collection Group, add `driverCodes.code`
+  ASCENDING (the missing-index error from the verify query links straight to the
+  creation page).
 - The per-student history query (`attendance` where `studentName` + order by
   `date`, `runId`) needs the composite index declared in `firestore.indexes.json`
   (deploy with `firebase deploy --only firestore:indexes`).
@@ -228,8 +274,9 @@ Material 3 light for both sections. Tokens live in the `@theme` block of
 
 - **Mobile:** centered phone column (`max-w-[480px]`, `sm:border-x`) with
   sticky top app bar and bottom bar, from `(mobile)/layout.tsx`.
-- **Dashboard:** fixed `w-64` sidebar + `ml-64` main with a sticky top bar
-  and sticky filter bar (`sticky top-0` / `top-16`). Document scrolls normally —
+- **Dashboard:** `w-64` sidebar + `lg:ms-64` main with a sticky top bar and
+  sticky filter bar (`sticky top-0` / `top-16`); below `lg` the sidebar becomes
+  a drawer and the main margin collapses (`ms-0`). Document scrolls normally —
   do not convert the shell to an `h-screen overflow-hidden` flex (it breaks the
   sticky offsets).
 
@@ -243,7 +290,10 @@ Firebase lifecycle (one-time + per-change):
   service-account key at `service-account.json` or `FIREBASE_SERVICE_ACCOUNT`).
 - `firebase deploy --only firestore:rules` — push `firestore.rules` (after any
   rules edit).
+- `firebase deploy --only firestore:indexes` — push `firestore.indexes.json`
+  (required for the driver-code collection-group query; run after adding an index).
 
 Known limitation / next step: per-tenant onboarding (creating a school + its
-users from a meeting) is done via the seed script rather than a UI — a small
-provisioning page or CLI is the natural next increment as tenants grow.
+**director** from a meeting) is done via the seed script rather than a UI.
+Driver accounts now have a full UI (create + codes on `/dashboard/drivers`);
+only brand-new schools/directors still need the seed script.

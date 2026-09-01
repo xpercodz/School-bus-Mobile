@@ -97,6 +97,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { id: "analytics", icon: "monitoring", href: "/dashboard/analytics" },
   { id: "reports", icon: "assessment", href: "/dashboard/reports" },
   { id: "assignments", icon: "assignment_ind", href: "/dashboard/assignments" },
+  { id: "drivers", icon: "badge", href: "/dashboard/drivers" },
 ];
 
 /** Map the current pathname to the active sidebar item id (shell pages → live-map). */
@@ -104,6 +105,7 @@ export function activeIdFromPathname(pathname: string): string {
   if (pathname.startsWith("/dashboard/analytics")) return "analytics";
   if (pathname.startsWith("/dashboard/reports")) return "reports";
   if (pathname.startsWith("/dashboard/assignments")) return "assignments";
+  if (pathname.startsWith("/dashboard/drivers")) return "drivers";
   return "live-map";
 }
 

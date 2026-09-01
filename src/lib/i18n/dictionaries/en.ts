@@ -16,6 +16,14 @@ export const messages = {
   // Login screen
   "login.heading": "School Bus Transit",
   "login.subtitle": "Sign in to continue",
+  "login.driverTab": "Driver code",
+  "login.directorTab": "Director",
+  "login.modeAria": "Choose sign-in mode",
+  "login.code": "Access code",
+  "login.codePlaceholder": "000000",
+  "login.codeError": "That code isn't valid. Check it and try again.",
+  "login.codeLocked": "Too many attempts. Try again in {minutes} minutes.",
+  "login.driverHint": "Ask your school director for your 6-digit access code.",
   "login.email": "Email",
   "login.password": "Password",
   "login.emailPlaceholder": "you@school.edu",
@@ -80,6 +88,7 @@ export const messages = {
   "nav.analytics": "Analytics",
   "nav.reports": "Reports",
   "nav.assignments": "Assignments",
+  "nav.drivers": "Drivers",
   "nav.dispatch": "Dispatch Vehicle",
 
   // Dashboard screen
@@ -121,6 +130,8 @@ export const messages = {
   "dashboard.helpAria": "Help",
   "dashboard.settingsAria": "Settings",
   "dashboard.noContactNumber": "No contact number on file",
+  "dashboard.openNavAria": "Open navigation menu",
+  "dashboard.closeNavAria": "Close navigation menu",
 
   // Student list (dashboard) — search, filters, and pagination
   "studentList.searchAria": "Search students",
@@ -262,6 +273,36 @@ export const messages = {
   "assignments.driverAssigned": "Driver assigned",
   "assignments.driverCleared": "Driver unassigned",
   "assignments.studentMoved": "Student bus updated",
+
+  // Drivers (director — driver accounts + access codes)
+  "drivers.title": "Drivers",
+  "drivers.subtitle": "Create driver accounts and manage access codes",
+  "drivers.addTitle": "Add driver",
+  "drivers.nameLabel": "Driver name",
+  "drivers.namePlaceholder": "e.g. Rita Patel",
+  "drivers.create": "Create & generate code",
+  "drivers.accessCodes": "Access codes",
+  "drivers.th.name": "Driver",
+  "drivers.th.bus": "Bus",
+  "drivers.th.code": "Access Code",
+  "drivers.noBus": "Not assigned",
+  "drivers.generateCode": "Generate code",
+  "drivers.revealAria": "Show code for {name}",
+  "drivers.hideAria": "Hide code for {name}",
+  "drivers.copyAria": "Copy code for {name}",
+  "drivers.regenerateAria": "Regenerate code for {name}",
+  "drivers.regenerateConfirmTitle": "Regenerate code?",
+  "drivers.regenerateConfirmBody":
+    "This gives {name} a new code. The old code will stop working.",
+  "drivers.empty": "No drivers yet",
+  "drivers.emptyHint": "Add a driver to generate their access code.",
+  "drivers.newCodeTitle": "Driver created",
+  "drivers.newCodeBody": "Access code for {name}:",
+  "drivers.copied": "Code copied",
+  "drivers.copyError": "Couldn't copy the code",
+  "drivers.createdToast": "Driver account created",
+  "drivers.regeneratedToast": "Access code updated",
+  "drivers.createError": "Couldn't create the driver. Please try again.",
 
   // Common
   "common.changeLanguageAria": "Change language",

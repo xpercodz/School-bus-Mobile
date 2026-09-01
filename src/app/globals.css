@@ -111,6 +111,16 @@
   --text-dash-body-sm--line-height: 1.5;
 }
 
+/*
+  Dashboard tables rely on `text-start` on the <table> for header alignment,
+  but Tailwind's preflight doesn't reset `th` — browsers center `th` by default,
+  so headers sat centered while body cells aligned left. Reset headers to the
+  start edge (matches RTL); the occasional `text-end` utility still wins.
+*/
+th {
+  text-align: start;
+}
+
 /* Horizontal scroll rows that hide the scrollbar (chips, tabs) */
 @utility no-scrollbar {
   &::-webkit-scrollbar {
@@ -138,9 +148,9 @@
 }
 
 /* Dialog (modal/drawer/sheet) entry — see components/Dialog.tsx. Applied on
-   mount so it opens with a quick fade; the close stays instant (no exit
-   animation). No sliding — the end drawer just fades in like every other
-   placement. */
+   mount so it opens; the close stays instant (no exit animation). Center
+   modals and bottom sheets fade in; the end drawer slides in from the
+   inline-end edge (direction-aware, so it also slides correctly in RTL). */
 @keyframes dlg-fade-in {
   from {
     opacity: 0;
@@ -152,6 +162,39 @@
 
 .dlg-fade-in {
   animation: dlg-fade-in 250ms ease-out both;
+}
+
+@keyframes dlg-slide-in-end {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.dlg-slide-in-end {
+  animation: dlg-slide-in-end 250ms ease-out both;
+  /* Promote the drawer to its own compositor layer so the slide runs off the
+     main thread. A transform animation on an element inside a scroll container
+     (the old overflow-y-auto wrapper) rasterizes per frame and visibly
+     jitters; opacity fades don't hit this because they auto-promote. */
+  will-change: transform;
+}
+
+/* In RTL the end drawer sits on the inline-end = left, so it slides in from
+   the left instead of the right. */
+[dir="rtl"] .dlg-slide-in-end {
+  animation-name: dlg-slide-in-end-rtl;
+}
+
+@keyframes dlg-slide-in-end-rtl {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 @layer base {

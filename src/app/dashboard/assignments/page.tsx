@@ -84,7 +84,7 @@ export default function AssignmentsPage() {
 
   return (
     <>
-      <div className="border-b border-dash-outline-variant bg-dash-surface-container-low px-6 py-3">
+      <div className="border-b border-dash-outline-variant bg-dash-surface-container-low px-4 py-3 sm:px-6">
         <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-dash-headline-lg text-dash-on-surface">{t("assignments.title")}</h1>
@@ -93,7 +93,7 @@ export default function AssignmentsPage() {
         </div>
       </div>
 
-      <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 p-6">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 p-4 sm:p-6">
         {busesLoading ? (
           <div role="status" aria-label={t("dashboard.loading")}>
             <AssignmentsSkeleton />

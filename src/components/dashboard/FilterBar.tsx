@@ -30,7 +30,7 @@ export function FilterBar({
   const ltr = dir === "ltr";
 
   return (
-    <div className="sticky top-16 z-10 border-b border-dash-outline-variant bg-dash-surface-container-low px-6 py-3">
+    <div className="sticky top-16 z-10 border-b border-dash-outline-variant bg-dash-surface-container-low px-4 py-3 sm:px-6">
       <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-between gap-4">
         <DateSegmentBar
           date={date}
