@@ -129,6 +129,15 @@ th {
   scrollbar-width: none;
 }
 
+/* Dialogs lock the body scrollbar (overflow: hidden), which on scrollbar-
+   bearing systems widens the viewport by the scrollbar width and reflows the
+   whole page + fixed overlays sideways the instant an overlay opens/closes —
+   perceived as a jolt or shake around the drawer. Reserving the gutter keeps
+   layout width constant whether or not the scrollbar is showing. */
+html {
+  scrollbar-gutter: stable;
+}
+
 /* Dashboard "live" pulse dot — a 3-tier ring pulse (mirrors code.html), not
    Tailwind's opacity animate-pulse. Decorative; disabled for reduced motion. */
 @keyframes dash-pulse {
@@ -147,10 +156,12 @@ th {
   animation: dash-pulse 2s infinite;
 }
 
-/* Dialog (modal/drawer/sheet) entry — see components/Dialog.tsx. Applied on
-   mount so it opens; the close stays instant (no exit animation). Center
-   modals and bottom sheets fade in; the end drawer slides in from the
-   inline-end edge (direction-aware, so it also slides correctly in RTL). */
+/* Dialog (modal/sheet) entry — see components/Dialog.tsx. Applied on mount so
+   it opens; the close stays instant (no exit animation). Center modals and
+   bottom sheets fade in via keyframes. End drawers do NOT animate here: they
+   unfold like an accordion through an inline transform transition (scaleX
+   hinged at the screen edge), driven by Dialog state — keyframe/translate
+   entries proved unstable on some engines (trembling/jumping drawers). */
 @keyframes dlg-fade-in {
   from {
     opacity: 0;
@@ -162,39 +173,6 @@ th {
 
 .dlg-fade-in {
   animation: dlg-fade-in 250ms ease-out both;
-}
-
-@keyframes dlg-slide-in-end {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-.dlg-slide-in-end {
-  animation: dlg-slide-in-end 250ms ease-out both;
-  /* Promote the drawer to its own compositor layer so the slide runs off the
-     main thread. A transform animation on an element inside a scroll container
-     (the old overflow-y-auto wrapper) rasterizes per frame and visibly
-     jitters; opacity fades don't hit this because they auto-promote. */
-  will-change: transform;
-}
-
-/* In RTL the end drawer sits on the inline-end = left, so it slides in from
-   the left instead of the right. */
-[dir="rtl"] .dlg-slide-in-end {
-  animation-name: dlg-slide-in-end-rtl;
-}
-
-@keyframes dlg-slide-in-end-rtl {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(0);
-  }
 }
 
 @layer base {

@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
+import { SlideSegments } from "@/components/SlideSegments";
 import { RUN_SEGMENTS, type RunSegmentId } from "@/data/dashboard";
 import { useLocale } from "@/lib/i18n/context";
 import { formatDate } from "@/lib/i18n/format";
@@ -25,6 +26,7 @@ interface DateSegmentBarProps {
 /**
  * Shared dashboard filter: the date picker chip + the Morning/Afternoon
  * run-segment control. Used by the Live Map FilterBar, Analytics, and Reports.
+ * The segment control is a sliding-thumb segmented control (SlideSegments).
  */
 export function DateSegmentBar({
   date,
@@ -32,29 +34,9 @@ export function DateSegmentBar({
   segment,
   onSegmentChange,
 }: DateSegmentBarProps) {
-  const { t, dir, locale } = useLocale();
+  const { t, locale } = useLocale();
   const [pickerOpen, setPickerOpen] = useState(false);
-  const segmentRefs = useRef<Record<RunSegmentId, HTMLButtonElement | null>>({
-    morning: null,
-    afternoon: null,
-  });
   const dateRootRef = useRef<HTMLDivElement>(null);
-
-  // Roving focus + arrow-key navigation, matching the mobile SegmentedTabs.
-  // Direction is inverted in RTL.
-  function handleSegmentKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    const current = RUN_SEGMENTS.findIndex((item) => item.id === segment);
-    const forward = dir === "rtl" ? "ArrowLeft" : "ArrowRight";
-    const backward = dir === "rtl" ? "ArrowRight" : "ArrowLeft";
-    let next = -1;
-    if (event.key === forward) next = (current + 1) % RUN_SEGMENTS.length;
-    else if (event.key === backward) next = (current - 1 + RUN_SEGMENTS.length) % RUN_SEGMENTS.length;
-    if (next === -1) return;
-    event.preventDefault();
-    const target = RUN_SEGMENTS[next];
-    onSegmentChange(target.id);
-    segmentRefs.current[target.id]?.focus();
-  }
 
   return (
     <div className="flex items-center gap-4">
@@ -81,36 +63,17 @@ export function DateSegmentBar({
         />
       </div>
 
-      {/* Run type segmented control. */}
-      <div
-        role="group"
-        aria-label={t("dashboard.runTypeAria")}
-        onKeyDown={handleSegmentKeyDown}
-        className="flex h-12 items-center rounded border border-dash-outline-variant bg-dash-surface p-1"
-      >
-        {RUN_SEGMENTS.map((item) => {
-          const isActive = segment === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              aria-pressed={isActive}
-              tabIndex={isActive ? 0 : -1}
-              ref={(el) => {
-                segmentRefs.current[item.id] = el;
-              }}
-              onClick={() => onSegmentChange(item.id)}
-              className={`h-full rounded px-4 text-dash-label-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dash-primary ${
-                isActive
-                  ? "bg-dash-primary-container font-bold text-dash-on-primary-container"
-                  : "text-dash-on-surface-variant transition-colors hover:text-dash-on-surface"
-              }`}
-            >
-              {t(SEGMENT_LABEL_KEY[item.id])}
-            </button>
-          );
-        })}
-      </div>
+      {/* Run type segmented control — sliding thumb. */}
+      <SlideSegments
+        variant="dash-box"
+        ariaLabel={t("dashboard.runTypeAria")}
+        options={RUN_SEGMENTS.map((item) => ({
+          id: item.id,
+          label: t(SEGMENT_LABEL_KEY[item.id]),
+        }))}
+        value={segment}
+        onChange={onSegmentChange}
+      />
     </div>
   );
 }
