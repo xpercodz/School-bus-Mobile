@@ -30,6 +30,10 @@ export const messages = {
   "login.passwordPlaceholder": "••••••••",
   "login.signIn": "Sign in",
   "login.fallbackError": "Sign in failed. Check your email and password.",
+  "login.notDirector":
+    "That email belongs to a driver account. Drivers sign in with their access code on the Driver code tab.",
+  "login.tooManyAttempts":
+    "Too many sign-in attempts. Wait a few minutes and try again.",
   "login.notConfiguredTitle": "Firebase not configured",
   "login.notConfiguredBody":
     "Fill the keys in {code} to enable sign-in. The app is running on mock data.",

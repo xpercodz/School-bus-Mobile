@@ -32,6 +32,9 @@ export const messages: Messages = {
   "login.passwordPlaceholder": "••••••••",
   "login.signIn": "تسجيل الدخول",
   "login.fallbackError": "فشل تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور.",
+  "login.notDirector":
+    "هذا البريد لحساب سائق. يدخل السائقون برمز الوصول من تبويب «رمز السائق».",
+  "login.tooManyAttempts": "محاولات دخول كثيرة. انتظر بضع دقائق ثم أعد المحاولة.",
   "login.notConfiguredTitle": "لم يتم إعداد Firebase",
   "login.notConfiguredBody":
     "أدخل المفاتيح في {code} لتفعيل تسجيل الدخول. يعمل التطبيق على بيانات تجريبية.",

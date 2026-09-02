@@ -3,13 +3,14 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signInWithCustomToken, signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithCustomToken } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { useUserProfile } from "@/lib/user-profile";
 import { useLocale } from "@/lib/i18n/context";
 import { Icon } from "@/components/Icon";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { SlideSegments } from "@/components/SlideSegments";
 
 /** Driver access-code lockout: 5 wrong codes → 15-minute block (localStorage). */
 const LOCKOUT_KEY = "sb:codeLockout";
@@ -109,17 +110,42 @@ export default function LoginPage() {
     }
   }
 
+  /**
+   * Director sign-in goes through /api/auth/director-sign-in: the server checks
+   * the email/password against Firebase Auth AND requires the account's
+   * `users/{uid}` profile to be a director before returning a custom token. A
+   * driver account typed into the Director tab is rejected with a clear error
+   * instead of silently landing on the driver app.
+   */
   async function handleDirectorSubmit(event: FormEvent) {
     event.preventDefault();
     if (!auth || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
-      router.replace("/dashboard");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : t("login.fallbackError");
-      setError(message);
+      const res = await fetch("/api/auth/director-sign-in", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      if (res.status === 403) {
+        setError(t("login.notDirector"));
+        return;
+      }
+      if (res.status === 429) {
+        setError(t("login.tooManyAttempts"));
+        return;
+      }
+      if (!res.ok) {
+        // 401 (wrong email/password) and anything else → generic message.
+        setError(t("login.fallbackError"));
+        return;
+      }
+      const { token } = (await res.json()) as { token: string };
+      await signInWithCustomToken(auth, token);
+      // The role-based redirect effect above lands the user on /dashboard.
+    } catch {
+      setError(t("login.fallbackError"));
     } finally {
       setSubmitting(false);
     }
@@ -160,27 +186,17 @@ export default function LoginPage() {
         </div>
         <p className="mt-1 text-body-md text-on-surface-variant">{t("login.subtitle")}</p>
 
-        <div
-          role="tablist"
-          aria-label={t("login.modeAria")}
-          className="mt-6 grid grid-cols-2 gap-1 rounded-full bg-surface-container-high p-1"
-        >
-          {(["driver", "director"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="tab"
-              aria-selected={mode === m}
-              onClick={() => setMode(m)}
-              className={`flex h-10 items-center justify-center rounded-full text-label-lg transition-colors ${
-                mode === m
-                  ? "bg-primary text-on-primary"
-                  : "text-on-surface-variant hover:bg-surface-container-highest"
-              }`}
-            >
-              {m === "driver" ? t("login.driverTab") : t("login.directorTab")}
-            </button>
-          ))}
+        <div className="mt-6">
+          <SlideSegments
+            variant="pill"
+            ariaLabel={t("login.modeAria")}
+            options={[
+              { id: "driver" as const, label: t("login.driverTab") },
+              { id: "director" as const, label: t("login.directorTab") },
+            ]}
+            value={mode}
+            onChange={setMode}
+          />
         </div>
 
         {mode === "driver" ? (
