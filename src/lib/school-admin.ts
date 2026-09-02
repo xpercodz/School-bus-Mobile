@@ -131,6 +131,8 @@ export function useStaffUsers(): StaffUser[] {
                 })),
             );
           },
+          // Ignore: sign-out denies every open listener before React unmounts them.
+          () => {},
         ),
       );
     });
@@ -164,14 +166,19 @@ export function useDriverCodes(): Record<string, string> {
     void fetchSchoolId(uid).then((schoolId) => {
       if (cancelled || !schoolId) return;
       unsubscribers.push(
-        onSnapshot(collection(firestore, "schools", schoolId, "driverCodes"), (snap) => {
-          if (cancelled) return;
-          const next: Record<string, string> = {};
-          snap.docs.forEach((d) => {
-            next[d.id] = (d.data().code as string) ?? "";
-          });
-          setCodes(next);
-        }),
+        onSnapshot(
+          collection(firestore, "schools", schoolId, "driverCodes"),
+          (snap) => {
+            if (cancelled) return;
+            const next: Record<string, string> = {};
+            snap.docs.forEach((d) => {
+              next[d.id] = (d.data().code as string) ?? "";
+            });
+            setCodes(next);
+          },
+          // Ignore: sign-out denies every open listener before React unmounts them.
+          () => {},
+        ),
       );
     });
 

@@ -257,10 +257,17 @@ export function useRunRoster(): RunRoster {
         ),
       );
       unsubscribers.push(
-        onSnapshot(doc(firestore, "schools", schoolId, "runs", runId), (snap) => {
-          setRunExists(snap.exists());
-          setRunStatus((snap.data()?.status as RunDoc["status"]) ?? "IN_PROGRESS");
-        }),
+        onSnapshot(
+          doc(firestore, "schools", schoolId, "runs", runId),
+          (snap) => {
+            setRunExists(snap.exists());
+            setRunStatus((snap.data()?.status as RunDoc["status"]) ?? "IN_PROGRESS");
+          },
+          () => {
+            // Ignore: sign-out denies every open listener before React unmounts
+            // them — nothing to settle on this path.
+          },
+        ),
       );
     });
 
@@ -413,15 +420,20 @@ export function useDashboardData(
       const dateStr = effectiveDate;
       const base = `schools/${schoolId}`;
 
-      const unsubBuses = onSnapshot(collection(firestore, base, "buses"), (snap) => {
-        setBuses(
-          snap.docs.map((d) => ({
-            id: d.id,
-            name: (d.data().name as string) ?? "",
-            driver: (d.data().driver as string) ?? "",
-          })),
-        );
-      });
+      const unsubBuses = onSnapshot(
+        collection(firestore, base, "buses"),
+        (snap) => {
+          setBuses(
+            snap.docs.map((d) => ({
+              id: d.id,
+              name: (d.data().name as string) ?? "",
+              driver: (d.data().driver as string) ?? "",
+            })),
+          );
+        },
+        // Ignore: sign-out denies every open listener before React unmounts them.
+        () => {},
+      );
       unsubscribers.push(unsubBuses);
 
       const unsubRuns = onSnapshot(
@@ -435,6 +447,8 @@ export function useDashboardData(
             })),
           );
         },
+        // Ignore: sign-out denies every open listener before React unmounts them.
+        () => {},
       );
       unsubscribers.push(unsubRuns);
 
