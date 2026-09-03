@@ -2,8 +2,8 @@ import { Skeleton, SkeletonText } from "@/components/Skeleton";
 
 /**
  * Dashboard loading skeletons. Each piece mirrors the exact layout of the
- * component it stands in for (MetricCard, BusCard, the data tables, the trend
- * chart) so the loading state looks like the content that will load.
+ * component it stands in for (MetricCard, BusCard, the data tables) so the
+ * loading state looks like the content that will load.
  */
 
 /** Mirrors MetricCard: label line, big metric number, bottom-right footer. */
@@ -108,22 +108,6 @@ function SkeletonTable({
   );
 }
 
-/** Mirrors the multi-day trend chart: a row of vertical bars of varying height. */
-function SkeletonTrend() {
-  const heights = [45, 70, 55, 85, 60, 90, 50];
-  return (
-    <div className="flex items-end gap-2 pb-1">
-      {heights.map((height, i) => (
-        <Skeleton
-          key={i}
-          className="w-10 rounded-t"
-          style={{ height: `${height}%` }}
-        />
-      ))}
-    </div>
-  );
-}
-
 // Column widths shared by the roster/attendance tables (Live Map + Reports).
 const ROSTER_COLUMNS = [
   "w-40", // name
@@ -148,21 +132,6 @@ export function LiveMapSkeleton() {
         </div>
         <SkeletonTable widths={ROSTER_COLUMNS} />
       </div>
-    </div>
-  );
-}
-
-/** Analytics loading state: KPIs, per-bus, per-grade, trend. */
-export function AnalyticsSkeleton() {
-  return (
-    <div className="flex flex-col gap-6">
-      <SkeletonKpiGrid />
-      <SkeletonText className="h-4 w-40" />
-      <SkeletonTable widths={["w-24", "w-10", "flex-1", "flex-1"]} rows={4} />
-      <SkeletonText className="h-4 w-40" />
-      <SkeletonTable widths={["w-24", "w-8", "w-8", "w-8", "w-8", "w-8"]} rows={4} />
-      <SkeletonText className="h-4 w-40" />
-      <SkeletonTrend />
     </div>
   );
 }

@@ -1,27 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { RunSegmentId } from "@/data/dashboard";
-import {
-  summarizeByBus,
-  summarizeByGrade,
-  useAttendanceTrend,
-  useDashboardData,
-} from "@/lib/school-data";
-import type { TrendDay } from "@/lib/school-data";
-import { useStudentList } from "@/lib/use-student-list";
-import { AnalyticsSkeleton } from "@/components/dashboard/DashboardSkeletons";
-import { DateSegmentBar } from "@/components/dashboard/DateSegmentBar";
+import { useState } from "react";
+import { Dialog } from "@/components/Dialog";
 import { Icon } from "@/components/Icon";
-import { MetricCard } from "@/components/dashboard/MetricCard";
-import { StudentHistorySheet } from "@/components/StudentHistorySheet";
-import { StudentList } from "@/components/dashboard/StudentList";
+import type { BusSummary, TrendDay } from "@/lib/school-data";
+import { useAttendanceTrend } from "@/lib/school-data";
 import { useLocale } from "@/lib/i18n/context";
 import {
   formatDate,
   toLocaleDigits,
   translateDataLabel,
 } from "@/lib/i18n/format";
+import type { RunSegmentId } from "@/data/dashboard";
 
 const MAX_TREND_SPAN_DAYS = 31;
 
@@ -34,7 +24,9 @@ function daysBetween(start: string, end: string): number {
   return Math.round((e - s) / 86_400_000) + 1;
 }
 
-/** Segmented horizontal bar showing a share of a total. */
+/**
+ * Segmented horizontal bar showing a share of a total.
+ */
 function RateBar({ value, total, tone }: { value: number; total: number; tone: string }) {
   const { locale } = useLocale();
   const pct = total === 0 ? 0 : Math.round((value / total) * 100);
@@ -81,25 +73,61 @@ function TrendBar({ day, max }: { day: TrendDay; max: number }) {
   );
 }
 
-export default function AnalyticsPage() {
+interface AnalyticsModalProps {
+  open: boolean;
+  onClose: () => void;
+  /** Date of the report the modal was opened from (shown as context). */
+  date: string | null;
+  /** Bus totals for the report's selected date + segment (already computed). */
+  byBus: readonly BusSummary[];
+  /** Run segment of the report the modal was opened from (trends follow it). */
+  segment: RunSegmentId;
+}
+
+/**
+ * Attendance analytics for the report the director is viewing — a modal opened
+ * from the Reports toolbar. Shows the two views the printable report doesn't:
+ * a visual per-bus rate-bar comparison and the multi-day trend chart. All
+ * single-day data comes from the Reports page (no re-query); only the trend
+ * fetches Firestore, and only while the modal is open (the body mounts on
+ * open, DispatchModal-style).
+ */
+export function AnalyticsModal({ open, onClose, date, byBus, segment }: AnalyticsModalProps) {
+  const { t } = useLocale();
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={t("analytics.title")}
+      panelClassName="w-full max-w-4xl rounded-2xl bg-dash-surface-container-low print:hidden"
+    >
+      {open && <AnalyticsBody date={date} byBus={byBus} segment={segment} onClose={onClose} />}
+    </Dialog>
+  );
+}
+
+const SEGMENT_LABEL_KEY: Record<RunSegmentId, "runType.morningPickup" | "runType.afternoonDropoff"> = {
+  morning: "runType.morningPickup",
+  afternoon: "runType.afternoonDropoff",
+};
+
+function AnalyticsBody({
+  date,
+  byBus,
+  segment,
+  onClose,
+}: {
+  date: string | null;
+  byBus: readonly BusSummary[];
+  segment: RunSegmentId;
+  onClose: () => void;
+}) {
   const { t, dir, locale } = useLocale();
   const ltr = dir === "ltr";
 
-  const [date, setDate] = useState<string | null>(null);
-  const [segment, setSegment] = useState<RunSegmentId>("morning");
   const [trendStart, setTrendStart] = useState<string | null>(null);
   const [trendEnd, setTrendEnd] = useState<string | null>(null);
-  const [historyStudent, setHistoryStudent] = useState<string | null>(null);
-
-  const { kpis, attendance, loading, live } = useDashboardData(date, segment);
-
-  const rows = useMemo(
-    () => attendance.filter((row) => row.runType === segment),
-    [attendance, segment],
-  );
-  const byBus = useMemo(() => summarizeByBus(rows), [rows]);
-  const byGrade = useMemo(() => summarizeByGrade(rows), [rows]);
-  const list = useStudentList(rows);
 
   // Trend range validation — only query when the range is sane.
   const rangeInvalid = Boolean(trendStart && trendEnd && trendStart > trendEnd);
@@ -136,51 +164,43 @@ export default function AnalyticsPage() {
     </h2>
   );
 
-  const empty = live && !loading && rows.length === 0;
-
   return (
     <>
-      <div className="border-b border-dash-outline-variant bg-dash-surface-container-low px-4 py-3 sm:px-6">
-        <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="text-dash-headline-lg text-dash-on-surface">{t("analytics.title")}</h1>
-            <p className="text-dash-body-sm text-dash-on-surface-variant">{t("analytics.subtitle")}</p>
-          </div>
-          <DateSegmentBar
-            date={date}
-            onDateChange={setDate}
-            segment={segment}
-            onSegmentChange={setSegment}
-          />
+      <div className="flex items-center justify-between gap-4 border-b border-dash-outline-variant bg-dash-surface-container-low px-4 py-3">
+        <div className="min-w-0">
+          <h2 className="text-dash-headline-lg text-dash-on-surface">{t("analytics.title")}</h2>
+          <p className="text-dash-body-sm text-dash-on-surface-variant">
+            {date ? formatDate(date, locale) : t("dashboard.today")}
+            {" · "}
+            {t(SEGMENT_LABEL_KEY[segment])}
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={t("dialog.close")}
+          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-dash-on-surface-variant transition-colors hover:bg-dash-surface-container-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dash-primary"
+        >
+          <Icon name="close" size={20} variant="outlined" />
+        </button>
       </div>
 
-      <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 p-4 sm:p-6">
-        {!live && (
-          <div role="status" className="flex items-center gap-2 text-dash-body-sm text-dash-on-surface-variant">
-            <Icon name="info" size={16} variant="outlined" />
-            {t("dashboard.liveUnavailable")}
-          </div>
-        )}
-        {live && loading ? (
-          <div role="status" aria-label={t("dashboard.loading")}>
-            <AnalyticsSkeleton />
-          </div>
-        ) : empty ? (
-          <div className="flex flex-col items-center gap-2 py-16 text-center">
-            <Icon name="query_stats" size={40} variant="outlined" className="text-dash-on-surface-variant" />
+      <div className="flex flex-col gap-6 px-4 py-4 sm:px-6 sm:py-5">
+        {byBus.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-12 text-center">
+            <Icon
+              name="query_stats"
+              size={40}
+              variant="outlined"
+              className="text-dash-on-surface-variant"
+            />
             <p className="text-dash-headline-lg text-dash-on-surface">{t("analytics.emptyTitle")}</p>
-            <p className="text-dash-body-sm text-dash-on-surface-variant">{t("analytics.emptySubtitle")}</p>
+            <p className="text-dash-body-sm text-dash-on-surface-variant">
+              {t("analytics.emptySubtitle")}
+            </p>
           </div>
         ) : (
           <>
-            {/* KPI row */}
-            <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {kpis.map((kpi) => (
-                <MetricCard key={kpi.id} kpi={kpi} />
-              ))}
-            </section>
-
             {/* Per-bus comparison */}
             <section className="flex flex-col gap-4">
               {sectionTitle("directions_bus", t("analytics.perBus"))}
@@ -214,43 +234,6 @@ export default function AnalyticsPage() {
                   </tbody>
                 </table>
               </div>
-            </section>
-
-            {/* Per-grade breakdown */}
-            <section className="flex flex-col gap-4">
-              {sectionTitle("school", t("analytics.perGrade"))}
-              <div className="overflow-x-auto rounded border border-dash-outline-variant bg-dash-surface">
-                <table className="w-full min-w-[560px] border-collapse text-start">
-                  <thead className="border-b border-dash-outline-variant bg-dash-surface-container text-dash-label-md uppercase text-dash-on-surface-variant">
-                    <tr>
-                      <th scope="col" className="h-10 px-4 py-2 font-medium">{t("dashboard.th.grade")}</th>
-                      <th scope="col" className="h-10 px-4 py-2 font-medium">{t("dashboard.th.assigned")}</th>
-                      <th scope="col" className="h-10 px-4 py-2 font-medium">{t("status.boarded")}</th>
-                      <th scope="col" className="h-10 px-4 py-2 font-medium">{t("status.droppedOff")}</th>
-                      <th scope="col" className="h-10 px-4 py-2 font-medium">{t("status.absent")}</th>
-                      <th scope="col" className="h-10 px-4 py-2 font-medium">{t("status.waiting")}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-dash-outline-variant text-dash-body-sm text-dash-on-surface">
-                    {byGrade.map((s) => (
-                      <tr key={s.grade} className="hover:bg-dash-surface-container-low">
-                        <td className="px-4 py-3 font-medium">{translateDataLabel(s.grade, locale, t)}</td>
-                        <td className="px-4 py-3 font-mono">{toLocaleDigits(String(s.assigned), locale)}</td>
-                        <td className="px-4 py-3 font-mono">{toLocaleDigits(String(s.boarded), locale)}</td>
-                        <td className="px-4 py-3 font-mono">{toLocaleDigits(String(s.droppedOff), locale)}</td>
-                        <td className="px-4 py-3 font-mono">{toLocaleDigits(String(s.absent), locale)}</td>
-                        <td className="px-4 py-3 font-mono">{toLocaleDigits(String(s.waiting), locale)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            {/* Student roster — paginated + searchable + filterable */}
-            <section className="flex flex-col gap-4">
-              {sectionTitle("history_edu", t("analytics.roster"))}
-              <StudentList list={list} onViewHistory={setHistoryStudent} />
             </section>
 
             {/* Multi-day trend */}
@@ -324,11 +307,6 @@ export default function AnalyticsPage() {
           </>
         )}
       </div>
-
-      <StudentHistorySheet
-        studentName={historyStudent}
-        onClose={() => setHistoryStudent(null)}
-      />
     </>
   );
 }

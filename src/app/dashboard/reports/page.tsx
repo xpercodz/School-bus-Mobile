@@ -6,6 +6,7 @@ import { summarizeByBus, summarizeByGrade, useDashboardData, todayDateStr } from
 import { useStudentList } from "@/lib/use-student-list";
 import { buildAttendanceCsv, downloadCsv } from "@/lib/csv";
 import { ReportsSkeleton } from "@/components/dashboard/DashboardSkeletons";
+import { AnalyticsModal } from "@/components/dashboard/AnalyticsModal";
 import { DateSegmentBar } from "@/components/dashboard/DateSegmentBar";
 import { Icon } from "@/components/Icon";
 import { MetricCard } from "@/components/dashboard/MetricCard";
@@ -23,6 +24,7 @@ export default function ReportsPage() {
   const [date, setDate] = useState<string | null>(null);
   const [segment, setSegment] = useState<RunSegmentId>("morning");
   const [historyStudent, setHistoryStudent] = useState<string | null>(null);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
 
   const { kpis, attendance, loading, live } = useDashboardData(date, segment);
 
@@ -67,6 +69,15 @@ export default function ReportsPage() {
               segment={segment}
               onSegmentChange={setSegment}
             />
+            <button
+              type="button"
+              onClick={() => setAnalyticsOpen(true)}
+              disabled={live && loading}
+              className="flex h-12 items-center gap-2 rounded border border-dash-outline px-4 text-dash-label-md uppercase text-dash-on-surface transition-colors hover:bg-dash-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Icon name="monitoring" size={16} variant="outlined" />
+              {t("reports.analytics")}
+            </button>
             <button
               type="button"
               onClick={() => window.print()}
@@ -214,6 +225,14 @@ export default function ReportsPage() {
           </>
         )}
       </div>
+
+      <AnalyticsModal
+        open={analyticsOpen}
+        onClose={() => setAnalyticsOpen(false)}
+        date={date}
+        byBus={byBus}
+        segment={segment}
+      />
 
       <StudentHistorySheet
         studentName={historyStudent}

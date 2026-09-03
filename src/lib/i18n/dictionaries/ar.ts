@@ -90,7 +90,6 @@ export const messages: Messages = {
   "nav.liveMap": "الخريطة الحية",
   "nav.fleet": "حالة الأسطول",
   "nav.routes": "المسارات",
-  "nav.analytics": "التحليلات",
   "nav.reports": "التقارير",
   "nav.assignments": "التعيينات",
   "nav.drivers": "السائقون",
@@ -229,11 +228,9 @@ export const messages: Messages = {
   "toast.dispatchExists": "توجد رحلة مسبقة لهذه الحافلة والتاريخ والنوع",
   "toast.error": "حدث خطأ ما. حاول مرة أخرى.",
 
-  // Analytics
+  // Analytics (modal opened from Reports)
   "analytics.title": "تحليلات الحضور",
-  "analytics.subtitle": "ملخص الحضور لليوم المحدد ونوع الرحلة",
   "analytics.perBus": "مقارنة حسب الحافلة",
-  "analytics.perGrade": "التفصيل حسب الصف",
   "analytics.trendTitle": "اتجاه متعدد الأيام",
   "analytics.trendHint": "إجماليات يومية عبر نطاق زمني",
   "analytics.startDate": "تاريخ البداية",
@@ -242,13 +239,13 @@ export const messages: Messages = {
   "analytics.trendEmpty": "لا توجد بيانات حضور في هذا النطاق",
   "analytics.rangeTooLong": "النطاق الزمني طويل جداً — الحد الأقصى ٣١ يوماً",
   "analytics.rangeInvalid": "يجب أن يكون تاريخ البداية قبل تاريخ النهاية",
-  "analytics.roster": "سجل الطلاب",
   "analytics.emptyTitle": "لا توجد بيانات حضور",
   "analytics.emptySubtitle": "لا توجد سجلات لهذا التاريخ ونوع الرحلة بعد.",
 
   // Reports
   "reports.title": "تقرير الحضور",
   "reports.subtitle": "ملخص حضوري قابل للطباعة لليوم المحدد ونوع الرحلة",
+  "reports.analytics": "التحليلات",
   "reports.overview": "نظرة عامة",
   "reports.byBus": "الملخص حسب الحافلة",
   "reports.byGrade": "الملخص حسب الصف",

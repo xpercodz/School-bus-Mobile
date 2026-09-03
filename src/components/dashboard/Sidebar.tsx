@@ -14,7 +14,6 @@ const NAV_LABEL_KEY: Record<string, MessageKey> = {
   "live-map": "nav.liveMap",
   fleet: "nav.fleet",
   routes: "nav.routes",
-  analytics: "nav.analytics",
   reports: "nav.reports",
   assignments: "nav.assignments",
   drivers: "nav.drivers",

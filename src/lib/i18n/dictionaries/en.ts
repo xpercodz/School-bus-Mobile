@@ -89,7 +89,6 @@ export const messages = {
   "nav.liveMap": "Live Map",
   "nav.fleet": "Fleet Status",
   "nav.routes": "Routes",
-  "nav.analytics": "Analytics",
   "nav.reports": "Reports",
   "nav.assignments": "Assignments",
   "nav.drivers": "Drivers",
@@ -228,11 +227,9 @@ export const messages = {
   "toast.dispatchExists": "A run already exists for this bus, date and type",
   "toast.error": "Something went wrong. Please try again.",
 
-  // Analytics
+  // Analytics (modal opened from Reports)
   "analytics.title": "Attendance Analytics",
-  "analytics.subtitle": "Attendance summary for the selected day and run segment",
   "analytics.perBus": "Per-Bus Comparison",
-  "analytics.perGrade": "Per-Grade Breakdown",
   "analytics.trendTitle": "Multi-day Trend",
   "analytics.trendHint": "Daily totals across a date range",
   "analytics.startDate": "Start date",
@@ -241,13 +238,13 @@ export const messages = {
   "analytics.trendEmpty": "No attendance data in this range",
   "analytics.rangeTooLong": "The date range is too long — maximum 31 days",
   "analytics.rangeInvalid": "Start date must be before end date",
-  "analytics.roster": "Student Roster",
   "analytics.emptyTitle": "No attendance data",
   "analytics.emptySubtitle": "No records exist for this date and run segment yet.",
 
   // Reports
   "reports.title": "Attendance Report",
   "reports.subtitle": "Printable attendance summary for the selected day and run segment",
+  "reports.analytics": "Analytics",
   "reports.overview": "Overview",
   "reports.byBus": "Summary by Bus",
   "reports.byGrade": "Summary by Grade",

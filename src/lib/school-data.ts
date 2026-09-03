@@ -768,7 +768,7 @@ export function useAttendanceTrend(
   return { days, loading, live };
 }
 
-// ── attendance summaries (Analytics / Reports) ───────────────────────────────
+// ── attendance summaries (Reports page + Analytics modal) ────────────────────
 
 export interface BusSummary {
   bus: string;
