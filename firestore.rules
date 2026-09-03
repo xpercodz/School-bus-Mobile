@@ -8,13 +8,22 @@ rules_version = '2';
 // scoped under `schools/{schoolId}`, so one school can never read another's
 // data.
 //
+// Profiles are created ONLY by Admin SDK code — scripts/seed.mjs and the server
+// routes both bypass these rules — so a client can never self-create a profile
+// or forge role/schoolId (the authorization gates everywhere below). Users read
+// only their own profile (directors additionally read their school's), update
+// their own ONLY with role/schoolId unchanged, and never delete.
+//
 // Driver access codes live in `schools/{schoolId}/driverCodes/{driverUid}`,
 // readable/writable ONLY by that school's director — a driver must not read a
 // colleague's code. Code verification (login) is server-side via the Admin SDK,
 // which bypasses these rules.
 //
-// The first director + seed data are created by scripts/seed.mjs (Admin SDK,
-// bypasses rules). Anyone authenticated but without a profile is denied.
+// Staff may write only their own bus's runs/attendance — buses/{busId}.driverUid
+// must be their uid — and only with validated status/run-type/date fields;
+// runs/attendance reads are school-wide. Each school's `audit` subcollection is
+// director-read-only; entries are written by the Admin SDK only (bypasses
+// rules). Anyone authenticated but without a profile is denied.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -46,18 +55,26 @@ service cloud.firestore {
       return isSignedIn() && schoolId() == schoolId;
     }
 
+    // True when the caller is staff AND `busId` is the bus they drive (buses/{id}.driverUid).
+    function staffsOwnBus(busId) {
+      return busId != null && isSignedIn() &&
+        get(/databases/$(database)/documents/schools/$(schoolId())/buses/$(busId))
+          .data.driverUid == request.auth.uid;
+    }
+
     // ── users ──────────────────────────────────────────────────────────────
-    // A user may read their own profile; a director may additionally read any
-    // profile of their own school (for the staff list). Everyone else is denied
-    // — so a staff user can never read another user's profile. A user may create
-    // their own profile and update their own ONLY if role/schoolId are unchanged
-    // — otherwise an attacker could self-promote to director or switch tenants
-    // (role/schoolId are the authorization gates everywhere below). Client code
-    // never writes users/{uid}; profiles come from Admin SDK code (seed + routes).
+    // Profiles are created ONLY by Admin SDK code (scripts/seed.mjs and the
+    // server routes, both of which bypass these rules) — clients never create
+    // users/{uid}, so role/schoolId (the authorization gates everywhere below)
+    // can't be forged by a self-created profile. A user may read their own
+    // profile; a director may additionally read any profile of their own school
+    // (for the staff list); everyone else is denied — so a staff user can never
+    // read another user's profile. A user may update their own profile ONLY if
+    // role/schoolId are unchanged — otherwise an attacker could self-promote to
+    // director or switch tenants. Profiles are never deleted.
     match /users/{uid} {
       allow read: if request.auth.uid == uid
         || (isDirector() && resource.data.schoolId == schoolId());
-      allow create: if request.auth.uid == uid;
       allow update: if request.auth.uid == uid
         && request.resource.data.role == resource.data.role
         && request.resource.data.schoolId == resource.data.schoolId;
@@ -69,20 +86,29 @@ service cloud.firestore {
       allow read: if isMySchool(schoolId);
       allow write: if isMySchool(schoolId) && isDirector();
 
-      // Students & buses are school-administered (directors only).
+      // Students & buses are school-administered (directors only). Creates must
+      // carry the core fields (name/grade) — shallow integrity, since directors
+      // are the only writers.
       match /students/{studentId} {
         allow read: if isMySchool(schoolId);
-        allow write: if isMySchool(schoolId) && isDirector();
+        allow write: if isMySchool(schoolId) && isDirector()
+          && (request.method != 'create'
+            || (request.resource.data.name is string
+              && request.resource.data.grade is string));
       }
 
       match /buses/{busId} {
         allow read: if isMySchool(schoolId);
-        allow write: if isMySchool(schoolId) && isDirector();
+        allow write: if isMySchool(schoolId) && isDirector()
+          && (request.method != 'create'
+            || request.resource.data.name is string);
       }
 
-      // Driver access codes — one doc per driver, director-only. The verify
-      // route reads these via the Admin SDK (bypasses rules); the director's
-      // client reads/writes them to show, copy, and regenerate codes.
+      // Driver access codes — one doc per driver (a `codeHash`, never the
+      // plaintext code), director-only reads/writes. The verify route hashes the
+      // submitted code and looks it up via the Admin SDK (bypasses rules);
+      // directors' clients read these docs to see which drivers have codes, and
+      // the server routes create/rotate them (plaintext is returned once).
       match /driverCodes/{driverUid} {
         allow read, write: if isMySchool(schoolId) && isDirector();
       }
@@ -90,14 +116,28 @@ service cloud.firestore {
       // Runs hold run metadata (bus, type, date, status).
       match /runs/{runId} {
         allow read: if isMySchool(schoolId);
-        allow write: if isMySchool(schoolId) && (isDirector() || isStaff());
+        allow write: if isMySchool(schoolId) && (isDirector() || (isStaff() &&
+          staffsOwnBus(request.resource.data.busId) &&
+          request.resource.data.status in ['IN_PROGRESS', 'COMPLETED'] &&
+          request.resource.data.runType in ['morning', 'afternoon'] &&
+          request.resource.data.date is string));
       }
 
       // Attendance is a flat per-school collection, one doc per
       // (run, student) — denormalized for single-query realtime reads.
       match /attendance/{attId} {
         allow read: if isMySchool(schoolId);
-        allow write: if isMySchool(schoolId) && (isDirector() || isStaff());
+        allow write: if isMySchool(schoolId) && (isDirector() || (isStaff() &&
+          staffsOwnBus(request.resource.data.busId) &&
+          request.resource.data.status in ['BOARDED', 'WAITING', 'DROPPED_OFF',
+            'ABSENT']));
+      }
+
+      // Server-side audit trail (Admin SDK writes; bypasses rules). Directors
+      // may read their school's audit log; nobody writes from the client.
+      match /audit/{entryId} {
+        allow read: if isMySchool(schoolId) && isDirector();
+        allow write: if false;
       }
     }
   }

@@ -26,12 +26,15 @@ repo — keep it accurate as the project evolves.
 ```
 /                      (mobile) group  — phone-column roster (per-driver morning run)
 /dashboard             dashboard/      — director "School Transit Live Monitor"
-/dashboard/analytics   dashboard/      — attendance statistics + multi-day trend
-/dashboard/reports     dashboard/      — printable attendance summary (CSV + print)
+/dashboard/reports     dashboard/      — printable attendance summary (CSV + print),
+                                        with an Analytics modal (per-bus rates +
+                                        multi-day trend)
 /dashboard/assignments dashboard/      — director-only driver↔bus and student↔bus links
 /dashboard/drivers     dashboard/      — director-only driver accounts + access codes
 /login                 login/          — driver access code, or director email/password
 ```
+(`/dashboard/analytics` was a standalone statistics page; Analytics now lives as
+a modal inside Reports, and the old URL 308-redirects to `/dashboard/reports`.)
 
 **Role-based access:** after login, `staff` (bus monitor/driver) lands on `/`,
 `director` on `/dashboard`. The dashboard is wrapped in `RequireRole
@@ -55,16 +58,18 @@ exchanged **server-side** for a custom token before any session exists.
   drawer reuses the shared `Dialog` `placement="end"` pattern, so focus trap /
   Escape / scroll-lock come for free). The top bar hides its brand text and
   live-clock chip on narrow screens; wide tables keep horizontal scroll.
-- Sidebar nav: **Live Map** (`/dashboard`), **Analytics** (`/dashboard/analytics`),
-  **Reports** (`/dashboard/reports`), and **Assignments** (`/dashboard/assignments`)
-  are real routes; the active pill follows the path. **Fleet Status** is
-  intentionally inert (the fleet grid already lives on the Live Map) and
-  **Routes** isn't built yet.
-- **Analytics** — KPI cards, per-bus boarded/absent rate bars, per-grade
-  breakdown, a **Student Roster** (same paginated/searchable/filterable list as
-  the other pages), and a multi-day attendance trend (`useAttendanceTrend`:
-  paginated date-range query on `attendance.date`, CSS stacked-bar chart,
-  default last 7 days, capped at 31).
+- Sidebar nav: **Live Map** (`/dashboard`), **Reports** (`/dashboard/reports`),
+  **Assignments** (`/dashboard/assignments`), and **Drivers**
+  (`/dashboard/drivers`) are real routes; the active pill follows the path.
+  **Fleet Status** is intentionally inert (the fleet grid already lives on the
+  Live Map) and **Routes** isn't built yet.
+- **Analytics** is not a route — it's a modal (`AnalyticsModal`, launched by the
+  **Analytics** button in the Reports toolbar). It shows the two analysis views
+  the printable report doesn't: per-bus boarded/absent **rate bars** and the
+  multi-day attendance trend (`useAttendanceTrend`: paginated date-range query
+  on `attendance.date`, CSS stacked-bar chart, default last 7 days, capped at
+  31). It reuses the report's already-loaded bus summaries and follows its run
+  segment; only the trend queries Firestore, and only while the modal is open.
 - **Reports** — overview KPIs, by-bus and by-grade summary tables, the full
   roster (paginated/searchable/filterable like the Live Map table), **Export
   CSV** (reuses `src/lib/csv.ts`; exports the currently filtered rows), and
@@ -106,8 +111,8 @@ the rendered design). One screen: the Live Monitor.
   per-student attendance sheet; **Call** is disabled (no contact numbers on file).
   The table is **paginated (10 rows/page)** with a per-list toolbar: student
   name search, a grade dropdown, and status chips (All / Boarded / Waiting /
-  Dropped Off / Absent) — shared by the Live Map, Analytics roster, and Reports
-  roster via `useStudentList` + `StudentList` (`src/lib/use-student-list.ts`,
+  Dropped Off / Absent) — shared by the Live Map and Reports rosters via
+  `useStudentList` + `StudentList` (`src/lib/use-student-list.ts`,
   `src/components/dashboard/StudentList.tsx`).
 - **Filter bar** — date picker (re-queries the dashboard for a chosen day),
   Morning Pickup / Afternoon Drop-off segment control (filters the table, KPIs,
@@ -125,15 +130,24 @@ Bus drivers are typically in their 40s–50s with no valid email, so they sign i
 with a **6-digit numeric code** instead of email/password. Directors keep
 email/password and manage driver accounts from the **Drivers** page
 (`/dashboard/drivers`): create a driver by name → an auto-generated code is
-shown once (copyable), with per-row reveal / copy / regenerate, and "Generate
-code" for any staff account that has none.
+shown **once** (copyable), with per-row reveal / copy / regenerate, and
+"Generate code" for any staff account that has none.
 
 - **Mechanism:** the code is exchanged server-side for a **Firebase custom
   token** (`POST /api/auth/verify-code` → Admin SDK collectionGroup lookup on
-  `driverCodes` → `createCustomToken`), then the client calls
+  `driverCodes.codeHash` → `createCustomToken`), then the client calls
   `signInWithCustomToken`. The session stays a normal Firebase Auth session, so
   `onAuthStateChanged`, `useUserProfile`, `RequireRole`, and the rules'
   `request.auth.uid` gating all work unchanged.
+- **Codes are stored hashed, not plaintext.** The doc holds
+  `codeHash = HMAC-SHA256(CODE_PEPPER, code)` (hex) — `CODE_PEPPER` is a
+  server-only env var (`.env.local` / hosting secret, never committed). The
+  plaintext code exists only in the API response at create/regenerate time
+  (shown once, copyable). Legacy docs that still carry a plaintext `code` field
+  keep displaying until they are regenerated (or the demo DB is re-seeded);
+  verification only matches `codeHash`, so any legacy code stops working once
+  its doc is rotated — the **Regenerate** action is the recovery path for lost
+  codes.
 - **Creating drivers is server-side** (`POST /api/drivers`, director-only via a
   verified Bearer ID token): `auth.createUser` with a placeholder
   `{uuid}@drivers.invalid` email and no password, plus the staff profile and
@@ -141,11 +155,15 @@ code" for any staff account that has none.
   codes stay globally unique.
 - **Codes are director-only data** in `schools/{schoolId}/driverCodes/{driverUid}`
   (rules deny staff), generated with a global-uniqueness re-query. The verify
-  route runs a uniform ~400ms delay on success/failure and a per-IP rate limit;
-  the login page adds a 5-attempt → 15-minute client lockout (localStorage).
+  route runs a uniform ~400ms delay on success/failure, a bounded per-IP rate
+  limit, an Origin check (CSRF), and a transactional per-code
+  `attempts`/`lockedUntil` counter that locks a code for 15 minutes after 10
+  failed role-gate attempts; the login page adds a 5-attempt → 15-minute client
+  lockout (localStorage, UX only).
 - **Server modules:** `src/lib/firebase-admin.ts` (Admin SDK singleton, same
   credential resolution as `scripts/seed.mjs`) and `src/lib/driver-admin.ts`
-  (`requireDirector`, `generateUniqueCode`, `createDriver`, `rotateCode`).
+  (`requireDirector`, `hashCode`, `generateUniqueCode`, `createDriver`,
+  `rotateCode`, `isAllowedOrigin`, `rateLimited`, `logAudit`).
 
 ## Director sign-in (email/password)
 
@@ -166,9 +184,30 @@ can exist:
   pointing drivers to the code tab. Session shape is unchanged — a normal
   Firebase Auth session, so `onAuthStateChanged`, `useUserProfile`,
   `RequireRole`, and rules gating all work as before.
-- The route applies the same uniform ~400ms delay and per-IP rate limit as
-  `/api/auth/verify-code`; Firebase Auth additionally throttles repeated
-  password failures per account.
+- The route applies the same uniform ~400ms delay, bounded per-IP rate limit,
+  and Origin check (CSRF) as `/api/auth/verify-code`; Firebase Auth additionally
+  throttles repeated password failures per account. Both sign-in routes log
+  structured one-line failures (event + reason + ip — never credentials).
+
+## Security hardening (recent)
+
+- **Firestore rules** (`firestore.rules`): profiles are Admin-SDK-provisioned
+  only (no client `create` — a self-created profile could forge
+  role/schoolId); staff writes to `runs`/`attendance` are scoped to the caller's
+  own bus (`buses/{id}.driverUid`) with validated fields (`status` enums,
+  `runType`, `date`); director creates of `students`/`buses` must carry core
+  fields; `schools/{sid}/audit` is director-read-only, written by the Admin SDK.
+- **Audit trail:** `createDriver`/`rotateCode` best-effort write
+  `schools/{sid}/audit/{uuid}` events (`driver.created`,
+  `driver.code_regenerated`) with the acting director's uid — codes/passwords
+  never enter the log (`src/lib/driver-admin.ts` → `logAudit`).
+- **HTTP headers:** `next.config.ts` sends `X-Frame-Options: DENY`,
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+  strict-origin-when-cross-origin`, `Permissions-Policy`, and disables
+  `X-Powered-By`.
+- **Other:** the `locale` cookie is `SameSite=Lax` + `Secure`; the CSV exporter
+  neutralizes spreadsheet-formula injection (`=`, `+`, `-`, `@`, including
+  whitespace/tab-prefixed cells); the local service-account key is chmod 600.
 
 ## Data model
 
@@ -179,10 +218,14 @@ users/{uid}                          { role: "director"|"staff", schoolId, email
 schools/{schoolId}                   { name }
 schools/{schoolId}/students/{id}     { name, grade, busId }
 schools/{schoolId}/buses/{id}        { name, driver, driverUid? }
-schools/{schoolId}/driverCodes/{uid} { code }   // director-only; driver sign-in
+schools/{schoolId}/driverCodes/{uid} { codeHash }  // HMAC-SHA256(CODE_PEPPER, code);
+                                   // director-only; driver sign-in. Legacy docs
+                                   // may still carry a plaintext { code } field.
 schools/{schoolId}/runs/{id}         { busId, runType, date, status }
 schools/{schoolId}/attendance/{id}   { runId, date, busId, busName, studentName,
                                        grade, status, boardedAt, droppedOffAt }
+schools/{schoolId}/audit/{id}        { event, actorUid, at, detail? }
+                                   // director-read-only; Admin-SDK-written
 ```
 
 - **Tenant isolation:** everything lives under `schools/{schoolId}`; the rules
@@ -199,12 +242,13 @@ schools/{schoolId}/attendance/{id}   { runId, date, busId, busName, studentName,
 - **Driver access codes** live in `schools/{schoolId}/driverCodes/{driverUid}`,
   readable/writable only by that school's director (rules). Code verification
   (`/api/auth/verify-code`) queries them via Admin SDK `collectionGroup`, which
-  needs a **single-field collection-group index on `code`**. Single-field
+  needs a **single-field collection-group index on `codeHash`**. Single-field
   collection-group indexes can't be deployed via `firestore.indexes.json`
   (firebase CLI rejects them) — enable it once in the Firebase console:
-  Firestore → Indexes → Single Field → Collection Group, add `driverCodes.code`
-  ASCENDING (the missing-index error from the verify query links straight to the
-  creation page).
+  Firestore → Indexes → Single Field → Collection Group, add
+  `driverCodes.codeHash` ASCENDING (the missing-index error from the verify
+  query links straight to the creation page). Legacy plaintext `code` docs are
+  replaced on the next code rotation or demo re-seed.
 - The per-student history query (`attendance` where `studentName` + order by
   `date`, `runId`) needs the composite index declared in `firestore.indexes.json`
   (deploy with `firebase deploy --only firestore:indexes`).
@@ -229,7 +273,7 @@ schools/{schoolId}/attendance/{id}   { runId, date, busId, busName, studentName,
 - `src/lib/use-student-list.ts` — `useStudentList(rows)` — client-side search
   (name) + grade + status filters and table-view pagination (10/page) over an
   already-loaded row set. Powers the shared `StudentList` component used by the
-  Live Map, Analytics roster, and Reports roster.
+  Live Map and Reports rosters.
 - `src/lib/csv.ts` — attendance CSV export (`buildAttendanceCsv` / `downloadCsv`).
 - `scripts/clear-data.mjs` — wipes the seeded demo data (schools subtree; pass
   `--users` to also remove the demo accounts).
@@ -238,6 +282,9 @@ schools/{schoolId}/attendance/{id}   { runId, date, busId, busName, studentName,
   bus01 via `buses.driverUid`), a demo school, 4 buses, 32 students, and
   today's morning runs with attendance. Idempotent — safe to re-run.
   Env-overridable (`DIRECTOR_*`, `STAFF_*`, `MONITOR2_*`, `SCHOOL_ID`).
+  Passwords fail closed (no well-known defaults unless `--demo` /
+  `ALLOW_DEMO_DEFAULTS=1`), codes are stored hashed, and `CODE_PEPPER` is read
+  from the env or `.env.local` (plain node doesn't auto-load it).
 
 ## Internationalization
 
@@ -311,11 +358,16 @@ Vercel or a PWA. `/`, `/dashboard`, and `/login` ship in the same build.
 
 Firebase lifecycle (one-time + per-change):
 - `node scripts/seed.mjs` — bootstrap the director user + demo data (needs a
-  service-account key at `service-account.json` or `FIREBASE_SERVICE_ACCOUNT`).
+  service-account key at `service-account.json` or `FIREBASE_SERVICE_ACCOUNT`;
+  needs `CODE_PEPPER` set or in `.env.local`; real passwords via env unless
+  `--demo`). After the hashed-code change, re-seed (or regenerate each demo
+  driver's code once) so every `driverCodes` doc stores `codeHash`.
 - `firebase deploy --only firestore:rules` — push `firestore.rules` (after any
-  rules edit).
+  rules edit). The rules now deny client profile creation and scope staff
+  writes to their own bus — smoke-test staff/director flows on staging first.
 - `firebase deploy --only firestore:indexes` — push `firestore.indexes.json`
-  (required for the driver-code collection-group query; run after adding an index).
+  (required for the per-student history query; the `driverCodes.codeHash`
+  collection-group index is console-only).
 
 Known limitation / next step: per-tenant onboarding (creating a school + its
 **director** from a meeting) is done via the seed script rather than a UI.

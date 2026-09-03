@@ -16,7 +16,8 @@ function escapeCsvCell(value: string): string {
  */
 function sanitizeCell(value: string): string {
   if (value === "--:--:--") return value;
-  if (/^[=+\-@]/.test(value)) return `'${value}`;
+  const trimmed = value.trimStart();
+  if (trimmed !== "" && /^[=+\-@]/.test(trimmed)) return `'${value}`;
   return value;
 }
 

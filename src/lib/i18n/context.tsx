@@ -44,7 +44,7 @@ export function LocaleProvider({
   useEffect(() => {
     document.documentElement.lang = locale;
     document.documentElement.dir = dir;
-    document.cookie = `${LOCALE_COOKIE}=${locale}; path=/; max-age=31536000; samesite=lax`;
+    document.cookie = `${LOCALE_COOKIE}=${locale}; path=/; max-age=31536000; samesite=lax; secure`;
   }, [locale, dir]);
 
   const setLocale = useCallback((next: Locale) => setLocaleState(next), []);

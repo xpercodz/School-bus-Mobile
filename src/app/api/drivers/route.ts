@@ -10,8 +10,9 @@ import { createDriver, DriverAdminError, requireDirector } from "@/lib/driver-ad
  */
 export async function POST(request: Request) {
   let schoolId: string;
+  let actorUid: string;
   try {
-    ({ schoolId } = await requireDirector(request));
+    ({ uid: actorUid, schoolId } = await requireDirector(request));
   } catch (err) {
     if (err instanceof DriverAdminError) {
       return Response.json({ error: err.message }, { status: err.status });
@@ -30,6 +31,6 @@ export async function POST(request: Request) {
     return Response.json({ error: "invalid_name" }, { status: 400 });
   }
 
-  const driver = await createDriver(name, schoolId);
+  const driver = await createDriver(name, schoolId, actorUid);
   return Response.json(driver, { status: 201 });
 }

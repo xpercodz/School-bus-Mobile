@@ -14,18 +14,28 @@
  *     ⚙ Project settings → Service accounts → Generate new private key.
  *
  * Usage:
- *   node scripts/seed.mjs
+ *   node scripts/seed.mjs            # requires real passwords via env (see below)
+ *   node scripts/seed.mjs --demo     # well-known demo passwords (also ALLOW_DEMO_DEFAULTS=1)
  *
  * Env (optional):
  *   FIREBASE_SERVICE_ACCOUNT  path to the service-account JSON
  *   NEXT_PUBLIC_FIREBASE_PROJECT_ID  default "school-bus-a4f23"
  *   DIRECTOR_EMAIL / DIRECTOR_PASSWORD / DIRECTOR_NAME
+ *   STAFF_* / MONITOR2_* (same shape as DIRECTOR_*)
+ *
+ * Credentials: DIRECTOR_PASSWORD / STAFF_PASSWORD / MONITOR2_PASSWORD fail
+ * closed — without them (and without --demo) the script exits, so a real
+ * deployment can never silently get the well-known demo passwords. Driver
+ * access codes are stored HASHED (HMAC-SHA256 keyed by CODE_PEPPER, matching
+ * src/lib/driver-admin.ts); the plaintext code is printed once here so it can
+ * be handed to the driver. CODE_PEPPER is read from the env, falling back to
+ * a CODE_PEPPER= line in .env.local (plain node doesn't load .env.local).
  */
 
 import { initializeApp, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
-import { randomInt } from "node:crypto";
+import { createHmac, randomInt } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 
@@ -37,14 +47,55 @@ const PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "school-bus-a4
 const SCHOOL_ID = "demo-academy";
 const SCHOOL_NAME = "Demo Academy";
 const DIRECTOR_EMAIL = process.env.DIRECTOR_EMAIL ?? "director@schoolbus.demo";
-const DIRECTOR_PASSWORD = process.env.DIRECTOR_PASSWORD ?? "Director123!";
+const DEMO = process.argv.includes("--demo") || process.env.ALLOW_DEMO_DEFAULTS === "1";
+const DIRECTOR_PASSWORD = process.env.DIRECTOR_PASSWORD ?? (DEMO ? "Director123!" : null);
 const DIRECTOR_NAME = process.env.DIRECTOR_NAME ?? "School Director";
 const STAFF_EMAIL = process.env.STAFF_EMAIL ?? "monitor@schoolbus.demo";
-const STAFF_PASSWORD = process.env.STAFF_PASSWORD ?? "Monitor123!";
+const STAFF_PASSWORD = process.env.STAFF_PASSWORD ?? (DEMO ? "Monitor123!" : null);
 const STAFF_NAME = process.env.STAFF_NAME ?? "Alex Rivera";
 const MONITOR2_EMAIL = process.env.MONITOR2_EMAIL ?? "monitor2@schoolbus.demo";
-const MONITOR2_PASSWORD = process.env.MONITOR2_PASSWORD ?? "Monitor123!";
+const MONITOR2_PASSWORD = process.env.MONITOR2_PASSWORD ?? (DEMO ? "Monitor123!" : null);
 const MONITOR2_NAME = process.env.MONITOR2_NAME ?? "Dana Ortiz";
+
+if (!DIRECTOR_PASSWORD || !STAFF_PASSWORD || !MONITOR2_PASSWORD) {
+  console.error(
+    "DIRECTOR_PASSWORD / STAFF_PASSWORD / MONITOR2_PASSWORD are not set. " +
+      "Pass --demo (or ALLOW_DEMO_DEFAULTS=1) only for the well-known demo " +
+      "credentials; for real use set all three via the environment.",
+  );
+  process.exit(1);
+}
+
+/**
+ * The server hashes driver codes with HMAC-SHA256 keyed by CODE_PEPPER
+ * (src/lib/driver-admin.ts). Plain `node scripts/seed.mjs` doesn't load
+ * .env.local (only Next does), so fall back to parsing it ourselves. Like the
+ * server, a missing pepper fails closed.
+ */
+function loadCodePepper() {
+  const fromEnv = process.env.CODE_PEPPER;
+  if (fromEnv) return fromEnv;
+  const envFile = path.join(process.cwd(), ".env.local");
+  if (existsSync(envFile)) {
+    for (const line of readFileSync(envFile, "utf8").split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("CODE_PEPPER=")) {
+        const value = trimmed.slice("CODE_PEPPER=".length).trim();
+        if (value) return value;
+      }
+    }
+  }
+  console.error(
+    "CODE_PEPPER is not set (and not found in .env.local). Driver codes are " +
+      "stored hashed with HMAC-SHA256 keyed by CODE_PEPPER — set it and re-run.",
+  );
+  process.exit(1);
+}
+
+/** HMAC-SHA256 (hex) of a code — the stored form. Mirrors src/lib/driver-admin.ts. */
+function hashCode(code) {
+  return createHmac("sha256", loadCodePepper()).update(code).digest("hex");
+}
 
 if (!existsSync(SERVICE_ACCOUNT)) {
   console.error(
@@ -149,14 +200,20 @@ async function seed() {
   async function uniqueCode() {
     for (let i = 0; i < 20; i++) {
       const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
-      const hit = await db
-        .collectionGroup("driverCodes")
-        .where("code", "==", code)
-        .limit(1)
-        .get();
-      if (hit.empty) return code;
+      // Collision check against BOTH the hashed form (current storage) and the
+      // legacy plaintext field (docs seeded before hashing), so a fresh code
+      // can never equal a code a legacy doc still verifies against.
+      const [hashHits, legacyHits] = await Promise.all([
+        db.collectionGroup("driverCodes").where("codeHash", "==", hashCode(code)).limit(1).get(),
+        db.collectionGroup("driverCodes").where("code", "==", code).limit(1).get(),
+      ]);
+      if (hashHits.empty && legacyHits.empty) return code;
     }
     throw new Error("Couldn't allocate a unique driver code");
+  }
+
+  if (DEMO) {
+    console.warn("! demo mode: using the well-known demo passwords (--demo / ALLOW_DEMO_DEFAULTS=1).");
   }
 
   // 1. Director + staff (bus monitor/driver) Auth users + profiles
@@ -204,12 +261,14 @@ async function seed() {
     );
   console.log(`+ users/${monitor2.uid} (role=staff, schoolId=${SCHOOL_ID})`);
 
-  // Driver access codes — the staff sign in on mobile by typing these.
+  // Driver access codes — the staff sign in on mobile by typing these. Only
+  // the hash is stored (verify-code looks up `codeHash`); the plaintext is
+  // printed below so it can be handed to the driver once.
   const staffCode = await uniqueCode();
-  await db.doc(`schools/${SCHOOL_ID}/driverCodes/${staff.uid}`).set({ code: staffCode });
+  await db.doc(`schools/${SCHOOL_ID}/driverCodes/${staff.uid}`).set({ codeHash: hashCode(staffCode) });
   console.log(`+ schools/${SCHOOL_ID}/driverCodes/${staff.uid} (code ${staffCode})`);
   const monitor2Code = await uniqueCode();
-  await db.doc(`schools/${SCHOOL_ID}/driverCodes/${monitor2.uid}`).set({ code: monitor2Code });
+  await db.doc(`schools/${SCHOOL_ID}/driverCodes/${monitor2.uid}`).set({ codeHash: hashCode(monitor2Code) });
   console.log(`+ schools/${SCHOOL_ID}/driverCodes/${monitor2.uid} (code ${monitor2Code})`);
 
   // 2. School
@@ -275,9 +334,16 @@ async function seed() {
   }
 
   console.log("\nSeed complete.");
-  console.log(`Director login: ${DIRECTOR_EMAIL} / ${DIRECTOR_PASSWORD}  (→ /dashboard)`);
-  console.log(`Staff login:    ${STAFF_EMAIL} / ${STAFF_PASSWORD}  |  code ${staffCode}  (→ /, Bus 04)`);
-  console.log(`Staff 2 login:  ${MONITOR2_EMAIL} / ${MONITOR2_PASSWORD}  |  code ${monitor2Code}  (→ /, Bus 01)`);
+  // Passwords only echo in demo mode (real ones came from the operator's env);
+  // codes always print — they exist in the DB only as hashes, so this is the
+  // one chance to hand them to the drivers.
+  if (DEMO) {
+    console.log(`Director login: ${DIRECTOR_EMAIL} / ${DIRECTOR_PASSWORD}  (→ /dashboard)`);
+  } else {
+    console.log(`Director: ${DIRECTOR_EMAIL} (password set via env, not echoed)`);
+  }
+  console.log(`Staff 1: ${STAFF_EMAIL}  |  code ${staffCode}  (→ /, Bus 04)`);
+  console.log(`Staff 2: ${MONITOR2_EMAIL}  |  code ${monitor2Code}  (→ /, Bus 01)`);
   process.exit(0);
 }
 

@@ -147,8 +147,11 @@ export function useStaffUsers(): StaffUser[] {
 }
 
 /**
- * Realtime driver access codes of the school — `schools/{schoolId}/driverCodes`,
- * mapped `{ [driverUid]: code }`. Director-only per rules (drivers must not read
+ * Realtime driver access-code docs of the school — `schools/{schoolId}/driverCodes`,
+ * mapped `{ [driverUid]: code }` where `code` is the doc's legacy plaintext
+ * `code` field. Codes are now stored hashed (`codeHash` only, plaintext shown
+ * once at create/regenerate), so such docs map to "" and the UI falls back to
+ * the regenerate affordance. Director-only per rules (drivers must not read
  * each other's codes). Small reference data (one doc per staff account), so no
  * pagination.
  */
