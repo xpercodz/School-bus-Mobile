@@ -25,7 +25,8 @@ interface DateSegmentBarProps {
 
 /**
  * Shared dashboard filter: the date picker chip + the Morning/Afternoon
- * run-segment control. Used by the Live Map FilterBar, Analytics, and Reports.
+ * run-segment control. Used by the Live Map FilterBar and Reports (whose
+ * toolbar launches the Analytics modal).
  * The segment control is a sliding-thumb segmented control (SlideSegments).
  */
 export function DateSegmentBar({

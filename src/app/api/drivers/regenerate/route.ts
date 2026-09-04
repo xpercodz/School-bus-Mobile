@@ -11,8 +11,9 @@ import { adminDb } from "@/lib/firebase-admin";
  */
 export async function POST(request: Request) {
   let schoolId: string;
+  let actorUid: string;
   try {
-    ({ schoolId } = await requireDirector(request));
+    ({ uid: actorUid, schoolId } = await requireDirector(request));
   } catch (err) {
     if (err instanceof DriverAdminError) {
       return Response.json({ error: err.message }, { status: err.status });
@@ -37,6 +38,6 @@ export async function POST(request: Request) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
 
-  const code = await rotateCode(uid, schoolId);
+  const code = await rotateCode(uid, schoolId, actorUid);
   return Response.json({ code });
 }
