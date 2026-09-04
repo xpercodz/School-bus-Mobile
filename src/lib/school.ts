@@ -17,9 +17,14 @@ export function useSchoolName(): string | null {
   useEffect(() => {
     if (!schoolId || !db) return;
     const firestore = db;
-    const unsubscribe = onSnapshot(doc(firestore, "schools", schoolId), (snap) => {
-      setName((snap.data()?.name as string) ?? null);
-    });
+    const unsubscribe = onSnapshot(
+      doc(firestore, "schools", schoolId),
+      (snap) => {
+        setName((snap.data()?.name as string) ?? null);
+      },
+      // Ignore: sign-out denies every open listener before React unmounts them.
+      () => {},
+    );
     return unsubscribe;
   }, [schoolId]);
 

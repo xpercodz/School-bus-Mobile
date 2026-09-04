@@ -41,7 +41,8 @@ signed-in school's name (`src/lib/school.ts`), so each tenant sees their own.
 
 **Two sign-in modes on `/login`:** a segmented toggle switches between **Driver
 code** (default — a 6-digit access code, see "Driver access codes" below) and
-**Director** (email/password, unchanged).
+**Director** (email/password, see "Director sign-in" below). Both modes are
+exchanged **server-side** for a custom token before any session exists.
 
 - `src/app/(mobile)/layout.tsx` — the phone-column shell (`max-w-[480px]`);
   `(mobile)/page.tsx` is the attendance screen. URL stays `/`.
@@ -145,6 +146,29 @@ code" for any staff account that has none.
 - **Server modules:** `src/lib/firebase-admin.ts` (Admin SDK singleton, same
   credential resolution as `scripts/seed.mjs`) and `src/lib/driver-admin.ts`
   (`requireDirector`, `generateUniqueCode`, `createDriver`, `rotateCode`).
+
+## Director sign-in (email/password)
+
+Directors sign in with email/password on the **Director** tab of `/login`.
+Like driver codes, credentials are exchanged **server-side** before a session
+can exist:
+
+- **Mechanism:** `POST /api/auth/director-sign-in` verifies the email/password
+  against Firebase Auth (identitytoolkit REST, public web API key), then
+  requires the account's `users/{uid}` profile to be `role: "director"`
+  (fresh Admin SDK read) before minting a custom token the client exchanges
+  via `signInWithCustomToken`.
+- **Why:** the Director tab must never hand a session to a staff/driver
+  account that happens to have email/password credentials. Previously the
+  client signed in directly (`signInWithEmailAndPassword`) and role guards
+  silently bounced staff to the driver app; now the server rejects the wrong
+  role with `403 not_director` and the login page shows a localized message
+  pointing drivers to the code tab. Session shape is unchanged — a normal
+  Firebase Auth session, so `onAuthStateChanged`, `useUserProfile`,
+  `RequireRole`, and rules gating all work as before.
+- The route applies the same uniform ~400ms delay and per-IP rate limit as
+  `/api/auth/verify-code`; Firebase Auth additionally throttles repeated
+  password failures per account.
 
 ## Data model
 

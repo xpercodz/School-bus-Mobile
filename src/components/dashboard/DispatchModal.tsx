@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { Dialog } from "@/components/Dialog";
 import { Icon } from "@/components/Icon";
+import { SlideSegments } from "@/components/SlideSegments";
 import { useToast } from "@/components/Toast";
 import { RUN_SEGMENTS, type RunSegmentId } from "@/data/dashboard";
 import { db } from "@/lib/firebase";
@@ -177,27 +178,20 @@ function DispatchForm({ onClose }: { onClose: () => void }) {
           <legend className="text-label-lg text-on-surface-variant">
             {t("dispatch.runType")}
           </legend>
-          <div className="flex h-12 items-center rounded border border-outline-variant bg-surface p-1">
-            {RUN_SEGMENTS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                aria-pressed={runType === item.id}
-                onClick={() => setRunType(item.id)}
-                className={`h-full flex-1 rounded px-4 text-label-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-                  runType === item.id
-                    ? "bg-primary-container font-bold text-on-primary-container"
-                    : "text-on-surface-variant transition-colors hover:text-on-surface"
-                }`}
-              >
-                {t(
-                  item.id === "morning"
-                    ? "runType.morningPickup"
-                    : "runType.afternoonDropoff",
-                )}
-              </button>
-            ))}
-          </div>
+          <SlideSegments
+            variant="box"
+            ariaLabel={t("dispatch.runType")}
+            options={RUN_SEGMENTS.map((item) => ({
+              id: item.id,
+              label: t(
+                item.id === "morning"
+                  ? "runType.morningPickup"
+                  : "runType.afternoonDropoff",
+              ),
+            }))}
+            value={runType}
+            onChange={setRunType}
+          />
         </fieldset>
 
         <label className="flex flex-col gap-1">
